@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: leosburger_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: leosburger_user
+      POSTGRES_PASSWORD: leosburger_pass
+      POSTGRES_DB: leosburger_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

@@ -1,0 +1,31 @@
+{
+  "name": "leosburger",
+  "version": "1.0.0",
+  "description": "Plataforma de pedidos online para lanchonete, com cardápio digital integrado.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "postinstall": "prisma skills sync || exit 0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Claudineiii/LeosBurger.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Claudineiii/LeosBurger/issues"
+  },
+  "homepage": "https://github.com/Claudineiii/LeosBurger#readme",
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "prisma": "^6.19.3",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.2"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3"
+  }
+}
