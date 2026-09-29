@@ -7,8 +7,211 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model TesteConexao {
-  id       String   @id @default(uuid())
-  mensagem String
-  criadoEm DateTime @default(now())
+enum TipoUsuario {
+  CLIENTE
+  ADMIN
+
+  @@map("tipo_usuario")
+}
+
+enum TipoEntrega {
+  ENTREGA
+  RETIRADA
+
+  @@map("tipo_entrega")
+}
+
+enum StatusPedido {
+  PENDENTE
+  CONFIRMADO
+  PREPARANDO
+  PRONTO
+  SAIU_PARA_ENTREGA
+  CONCLUIDO
+  CANCELADO
+
+  @@map("status_pedido")
+}
+
+enum MetodoPagamento {
+  PIX
+  CREDITO
+  DEBITO
+  DINHEIRO
+
+  @@map("metodo_pagamento")
+}
+
+model Usuario {
+  id           String      @id @default(uuid())
+  nome         String      @db.VarChar(100)
+  email        String      @unique @db.VarChar(255)
+  telefone     String      @db.VarChar(20)
+  senhaHash    String      @map("senha_hash") @db.VarChar(255)
+  tipo         TipoUsuario @default(CLIENTE)
+  ativo        Boolean     @default(true)
+  criadoEm     DateTime    @default(now()) @map("criado_em")
+  atualizadoEm DateTime    @updatedAt @map("atualizado_em")
+
+  endereco Endereco?
+  pedidos  Pedido[]
+
+  @@map("usuarios")
+}
+
+model Endereco {
+  id           String   @id @default(uuid())
+  usuarioId    String   @unique @map("usuario_id")
+  cep          String   @db.VarChar(8)
+  logradouro   String   @db.VarChar(150)
+  numero       String   @db.VarChar(20)
+  complemento  String?  @db.VarChar(100)
+  bairro       String   @db.VarChar(100)
+  cidade       String   @db.VarChar(100)
+  estado       String   @db.VarChar(2)
+  referencia   String?  @db.VarChar(150)
+  latitude     Decimal? @db.Decimal(9, 6)
+  longitude    Decimal? @db.Decimal(9, 6)
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@map("enderecos")
+}
+
+model Categoria {
+  id           String   @id @default(uuid())
+  nome         String   @unique @db.VarChar(100)
+  descricao    String?  @db.VarChar(255)
+  ativo        Boolean  @default(true)
+  ordem        Int      @default(0)
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  itens Item[]
+
+  @@map("categorias")
+}
+
+model Item {
+  id           String   @id @default(uuid())
+  categoriaId  String   @map("categoria_id")
+  nome         String   @db.VarChar(100)
+  descricao    String?  @db.VarChar(500)
+  preco        Decimal  @db.Decimal(10, 2)
+  imagemUrl    String?  @map("imagem_url") @db.VarChar(500)
+  ativo        Boolean  @default(true)
+  ordem        Int      @default(0)
+  adicionais   Json?
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  categoria   Categoria    @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  itensCombo  ItemCombo[]
+  itensPedido ItemPedido[]
+
+  @@unique([categoriaId, nome])
+  @@map("itens")
+}
+
+model Combo {
+  id           String   @id @default(uuid())
+  nome         String   @unique @db.VarChar(100)
+  descricao    String?  @db.VarChar(500)
+  preco        Decimal  @db.Decimal(10, 2)
+  imagemUrl    String?  @map("imagem_url") @db.VarChar(500)
+  ativo        Boolean  @default(true)
+  ordem        Int      @default(0)
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  itensCombo  ItemCombo[]
+  itensPedido ItemPedido[]
+
+  @@map("combos")
+}
+
+model ItemCombo {
+  id         String @id @default(uuid())
+  comboId    String @map("combo_id")
+  itemId     String @map("item_id")
+  quantidade Int    @default(1)
+
+  combo Combo @relation(fields: [comboId], references: [id], onDelete: Cascade)
+  item  Item  @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@unique([comboId, itemId])
+  @@index([itemId])
+  @@map("itens_combo")
+}
+
+model Pedido {
+  id        String  @id @default(uuid())
+  numero    Int     @unique @default(autoincrement())
+  usuarioId String? @map("usuario_id")
+
+  tipoEntrega TipoEntrega  @map("tipo_entrega")
+  status      StatusPedido @default(PENDENTE)
+
+  nomeClienteHistorico     String @map("nome_cliente_historico") @db.VarChar(100)
+  telefoneClienteHistorico String @map("telefone_cliente_historico") @db.VarChar(20)
+
+  cepHistorico         String? @map("cep_historico") @db.VarChar(8)
+  logradouroHistorico  String? @map("logradouro_historico") @db.VarChar(150)
+  numeroHistorico      String? @map("numero_historico") @db.VarChar(20)
+  complementoHistorico String? @map("complemento_historico") @db.VarChar(100)
+  bairroHistorico      String? @map("bairro_historico") @db.VarChar(100)
+  cidadeHistorico      String? @map("cidade_historico") @db.VarChar(100)
+  estadoHistorico      String? @map("estado_historico") @db.VarChar(2)
+  referenciaHistorico  String? @map("referencia_historico") @db.VarChar(150)
+
+  distanciaKm Decimal? @map("distancia_km") @db.Decimal(6, 2)
+
+  subtotal    Decimal @db.Decimal(10, 2)
+  desconto    Decimal @default(0) @db.Decimal(10, 2)
+  taxaEntrega Decimal @default(0) @map("taxa_entrega") @db.Decimal(10, 2)
+  total       Decimal @db.Decimal(10, 2)
+
+  metodoPagamento MetodoPagamento @map("metodo_pagamento")
+  codigoCupom     String?         @map("codigo_cupom") @db.VarChar(50)
+  observacao      String?         @db.VarChar(500)
+
+  historicoStatus Json @default("[]") @map("historico_status")
+
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  usuario     Usuario?     @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  itensPedido ItemPedido[]
+
+  @@index([usuarioId])
+  @@index([status])
+  @@index([criadoEm])
+  @@map("pedidos")
+}
+
+model ItemPedido {
+  id       String  @id @default(uuid())
+  pedidoId String  @map("pedido_id")
+  itemId   String? @map("item_id")
+  comboId  String? @map("combo_id")
+
+  nomeHistorico          String  @map("nome_historico") @db.VarChar(100)
+  precoUnitarioHistorico Decimal @map("preco_unitario_historico") @db.Decimal(10, 2)
+  quantidade             Int
+  subtotal               Decimal @db.Decimal(10, 2)
+
+  observacao          String? @db.VarChar(500)
+  adicionais          Json?
+  composicaoHistorica Json?   @map("composicao_historica")
+
+  pedido Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  item   Item?  @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  combo  Combo? @relation(fields: [comboId], references: [id], onDelete: Restrict)
+
+  @@index([pedidoId])
+  @@index([itemId])
+  @@index([comboId])
+  @@map("itens_pedido")
 }
