@@ -2,9 +2,10 @@
   "name": "leosburger",
   "version": "1.0.0",
   "description": "Plataforma de pedidos online para lanchonete, com cardápio digital integrado.",
+  "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest",
     "postinstall": "prisma skills sync || exit 0"
   },
   "prisma": {
