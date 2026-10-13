@@ -6,7 +6,10 @@
   "main": "index.js",
   "scripts": {
     "test": "vitest",
-    "postinstall": "prisma skills sync || exit 0"
+    "postinstall": "prisma skills sync || exit 0",
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc --noEmit",
+    "start": "tsx src/server.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -32,6 +35,8 @@
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
-    "bcryptjs": "^3.0.3"
+    "bcryptjs": "^3.0.3",
+    "fastify": "^5.12.5",
+    "zod": "^4.6.7"
   }
 }
