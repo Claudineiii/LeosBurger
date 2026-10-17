@@ -2,19 +2,17 @@
 
 ## 1. Missão
 
-Dar continuidade ao projeto existente em `C:/LeosBurger`: cardápio digital e pedidos online para uma hamburgueria. Não recriar o projeto do zero. O usuário é o desenvolvedor responsável e quer aprender implementando.
+Dar continuidade ao projeto existente em `C:/LeosBurger`: cardápio digital e pedidos online para uma hamburgueria. Não recriar o projeto do zero. O usuário é o desenvolvedor responsável pelo projeto.
 
-## 2. Regra de colaboração obrigatória
+## 2. Regra de colaboração
 
-O usuário quer escrever pessoalmente as APIs, os testes e o código de negócio. Portanto:
+O agente deve implementar exatamente o que for solicitado, de forma direta e objetiva. Tokens são limitados — evite explicações longas, preâmbulos ou descrição de conceitos básicos.
 
-- Não entregue implementação completa nem trechos de código prontos espontaneamente.
-- Primeiro explique o objetivo, o conceito, o arquivo exato, os passos e os critérios de sucesso.
-- Deixe o usuário tentar implementar.
-- Se ele pedir ajuda, forneça pistas progressivas e específicas.
-- Só forneça código pronto quando o usuário pedir explicitamente.
-- Ao revisar código do usuário, explique a causa do erro e como raciocinar sobre a correção.
-- Seja direto, avance em etapas pequenas e não repita fundamentos já dominados sem necessidade.
+- Entregue sempre o código completo e funcional, pronto para uso.
+- Não pergunte se deve implementar — implemente.
+- Não ofereça alternativas não solicitadas nem explicações estendidas, a menos que perguntado.
+- Ao revisar código existente, aponte o erro e entregue a correção completa, sem rodeio.
+- Seja conciso nas respostas em texto; o código fala por si.
 - Não execute alterações ou comandos destrutivos sem autorização explícita.
 
 ## 3. Antes de qualquer tarefa
@@ -30,7 +28,7 @@ O usuário quer escrever pessoalmente as APIs, os testes e o código de negócio
    - estrutura atual de `src/` e `tests/`
 3. Não mostre nem solicite valores secretos de `.env`.
 4. Verifique a compatibilidade de qualquer dependência antes de sugerir instalação.
-5. Explique qual arquivo será trabalhado, por quê e como o resultado será validado.
+5. Informe qual arquivo será alterado antes de alterar.
 
 ## 4. Stack e restrições técnicas
 
@@ -87,7 +85,7 @@ Não criar dezenas de arquivos ou camadas vazias apenas por antecipação. Intro
 - Não existe estoque no MVP.
 - Não existe atendimento por telefone no MVP.
 - Não há relatórios contábeis em PDF no MVP.
-- Dashboard/fechamento é calculated a partir dos pedidos; visões diária, mensal, semestral e anual foram planejadas.
+- Dashboard/fechamento é calculado a partir dos pedidos; visões diária, mensal, semestral e anual foram planejadas.
 - Cupons foram discutidos como regra de negócio no documento antigo, mas não existe tabela de cupons aprovada no esquema de oito tabelas. Antes de implementar cupom, inspecionar a decisão mais recente e não criar tabela sem autorização.
 
 ## 8. Segurança e integridade
@@ -105,14 +103,11 @@ Não criar dezenas de arquivos ou camadas vazias apenas por antecipação. Intro
 
 ## 9. Processo por tarefa
 
-1. Apresente objetivo e critérios de aceite.
-2. Explique o arquivo e conceitos necessários.
-3. O usuário implementa.
-4. Revise a implementação com foco didático.
-5. Rode os testes relevantes e, quando apropriado, a suíte completa.
-6. Execute `npm run build`; valide Prisma quando o schema mudar.
-7. Revise `git diff` e `git status`.
-8. Sugira commit somente quando a mudança estiver compreendida e validada.
+1. Implemente exatamente o que foi pedido, no arquivo correto.
+2. Rode os testes relevantes e, quando apropriado, a suíte completa.
+3. Execute `npm run build`; valide o Prisma quando o schema mudar.
+4. Revise `git diff` e `git status`.
+5. Informe o resultado de forma objetiva (seção 11).
 
 ## 10. Comandos destrutivos proibidos sem autorização
 
@@ -128,11 +123,11 @@ Se uma dessas ações parecer necessária, explique o risco e espere autorizaç�
 
 ## 11. Entrega de cada agente
 
-Ao concluir uma tarefa, informar:
+Ao concluir uma tarefa, informar, de forma objetiva:
 
 - o que foi feito;
 - quais arquivos foram alterados;
-- decisões e motivos;
+- decisões e motivos (quando houver escolha entre abordagens);
 - comandos/testes executados e resultados;
 - limitações ou pendências;
 - próximos passos, sem implementar escopo extra.
