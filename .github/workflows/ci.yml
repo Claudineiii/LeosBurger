@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # Sobe um PostgreSQL temporário, só pra essa execução
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: leosburger_user
+          POSTGRES_PASSWORD: leosburger_pass
+          POSTGRES_DB: leosburger_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U leosburger_user"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    # Aponta o projeto pra esse banco temporário
+    env:
+      DATABASE_URL: "postgresql://leosburger_user:leosburger_pass@localhost:5432/leosburger_test?schema=public"
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Gerar Prisma Client
+        run: npx prisma generate
+
+      - name: Aplicar as migrations
+        run: npx prisma migrate deploy
+
+      - name: Checar tipos (build)
+        run: npm run build
+
+      - name: Rodar os testes
+        run: npm test -- --run
