@@ -5,7 +5,9 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "vitest",
+    "test": "tsx scripts/test-database.ts vitest",
+    "test:watch": "tsx scripts/test-database.ts vitest",
+    "db:test:migrate": "tsx scripts/test-database.ts migrate",
     "postinstall": "prisma skills sync || exit 0",
     "dev": "tsx watch src/server.ts",
     "build": "tsc --noEmit",
