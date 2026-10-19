@@ -19,3 +19,7 @@ Projeto iniciado em 27/09/2026.
 - Flowbite
 - Zod
 - Vitest
+
+## Testes
+
+Consulte [docs/06_TESTES.md](./docs/06_TESTES.md) para configurar o banco local isolado e executar migrations e testes.
