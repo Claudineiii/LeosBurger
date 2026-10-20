@@ -11,6 +11,20 @@ const categoriasResponseSchema = z.array(
   }),
 );
 
+const erroInternoResponseSchema = z.object({
+  status: z.literal(500),
+  error: z.literal("INTERNAL_SERVER_ERROR"),
+  message: z.string(),
+  details: z
+    .array(
+      z.object({
+        field: z.string(),
+        message: z.string(),
+      }),
+    )
+    .optional(),
+});
+
 export async function categoriasRoutes(app: FastifyInstance) {
   app.withTypeProvider<ZodTypeProvider>().get(
     "/categorias",
@@ -20,6 +34,7 @@ export async function categoriasRoutes(app: FastifyInstance) {
         tags: ["Categorias"],
         response: {
           200: categoriasResponseSchema,
+          500: erroInternoResponseSchema,
         },
       },
     },

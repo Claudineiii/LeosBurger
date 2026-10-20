@@ -16,20 +16,20 @@ O guia não implementa endpoints de itens, combos, autenticação ou pedidos, ne
 
 ## 3. Mapa dos arquivos envolvidos
 
-| Arquivo | Responsabilidade observada |
-| --- | --- |
-| `src/app.ts` | Cria a instância Fastify e registra plugins e grupos de rotas. |
-| `src/server.ts` | Cria a aplicação, inicia o listener e registra/fecha a aplicação ao falhar o início. |
-| `src/plugins/prisma.ts` | Cria e conecta o Prisma Client, decora `app.prisma` e desconecta no fechamento. |
-| `src/plugins/documentacao.ts` | Configura os compiladores Zod, Swagger/OpenAPI e a interface Scalar em `/reference`. |
-| `src/types/fastify.d.ts` | Declara `prisma` na tipagem de `FastifyInstance`. |
-| `src/routes/health.ts` | Define `GET /health`. |
-| `src/routes/categorias.ts` | Define `GET /categorias`, seu contrato de resposta e consulta Prisma. |
-| `tests/api/` | Testes HTTP/API que criam a aplicação e requisitam rotas. |
-| `tests/banco/` | Testes de integridade do banco. |
-| `scripts/test-database.ts` | Valida e injeta a URL exclusiva do banco de teste antes de Vitest ou migrations de teste. |
-| `vitest.config.ts` | Carrega o ambiente seguro de teste também quando Vitest é invocado diretamente. |
-| `prisma/schema.prisma` e `prisma/migrations/` | Modelo e histórico do banco; não são parte da implementação de uma rota comum. |
+| Arquivo                                       | Responsabilidade observada                                                                |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `src/app.ts`                                  | Cria a instância Fastify e registra plugins e grupos de rotas.                            |
+| `src/server.ts`                               | Cria a aplicação, inicia o listener e registra/fecha a aplicação ao falhar o início.      |
+| `src/plugins/prisma.ts`                       | Cria e conecta o Prisma Client, decora `app.prisma` e desconecta no fechamento.           |
+| `src/plugins/documentacao.ts`                 | Configura os compiladores Zod, Swagger/OpenAPI e a interface Scalar em `/reference`.      |
+| `src/types/fastify.d.ts`                      | Declara `prisma` na tipagem de `FastifyInstance`.                                         |
+| `src/routes/health.ts`                        | Define `GET /health`.                                                                     |
+| `src/routes/categorias.ts`                    | Define `GET /categorias`, seu contrato de resposta e consulta Prisma.                     |
+| `tests/api/`                                  | Testes HTTP/API que criam a aplicação e requisitam rotas.                                 |
+| `tests/banco/`                                | Testes de integridade do banco.                                                           |
+| `scripts/test-database.ts`                    | Valida e injeta a URL exclusiva do banco de teste antes de Vitest ou migrations de teste. |
+| `vitest.config.ts`                            | Carrega o ambiente seguro de teste também quando Vitest é invocado diretamente.           |
+| `prisma/schema.prisma` e `prisma/migrations/` | Modelo e histórico do banco; não são parte da implementação de uma rota comum.            |
 
 Não há atualmente diretórios de services, repositories ou schemas compartilhados para a API. A rota de categorias consulta Prisma diretamente; não crie camadas vazias por antecipação.
 
@@ -64,13 +64,17 @@ const respostaSchema = z.array(
   }),
 );
 
-app.withTypeProvider<ZodTypeProvider>().get("/categorias", {
-  schema: {
-    description: "Lista as categorias ativas do cardápio.",
-    tags: ["Categorias"],
-    response: { 200: respostaSchema },
+app.withTypeProvider<ZodTypeProvider>().get(
+  "/categorias",
+  {
+    schema: {
+      description: "Lista as categorias ativas do cardápio.",
+      tags: ["Categorias"],
+      response: { 200: respostaSchema },
+    },
   },
-}, handler);
+  handler,
+);
 ```
 
 O exemplo ilustra o contrato observado; não é um endpoint novo nem substitui a implementação real.
@@ -103,25 +107,40 @@ Até aqui, `/categorias` declara apenas schema de resposta; não há exemplo imp
 
 ### Critérios de status
 
-| Código | Quando é apropriado |
-| --- | --- |
-| `200` | Operação concluída com resposta, como a listagem atual de categorias. |
-| `201` | Criação de recurso concluída e identificável na resposta ou em cabeçalho apropriado. |
-| `204` | Operação concluída sem corpo; não envie JSON junto com este status. |
-| `400` | Entrada inválida ou requisição malformada, conforme contrato da rota. |
-| `401` | Credenciais/autenticação ausentes ou inválidas em rota protegida. |
-| `403` | Identidade autenticada sem autorização para a operação. |
-| `404` | Recurso solicitado não existe ou não deve ser revelado ao chamador. |
-| `409` | Conflito de unicidade ou de estado que impeça a operação. |
-| `500` | Falha inesperada do servidor; não use para erros esperados que tenham status específico. |
+| Código | Quando é apropriado                                                                      |
+| ------ | ---------------------------------------------------------------------------------------- |
+| `200`  | Operação concluída com resposta, como a listagem atual de categorias.                    |
+| `201`  | Criação de recurso concluída e identificável na resposta ou em cabeçalho apropriado.     |
+| `204`  | Operação concluída sem corpo; não envie JSON junto com este status.                      |
+| `400`  | Entrada inválida ou requisição malformada, conforme contrato da rota.                    |
+| `401`  | Credenciais/autenticação ausentes ou inválidas em rota protegida.                        |
+| `403`  | Identidade autenticada sem autorização para a operação.                                  |
+| `404`  | Recurso solicitado não existe ou não deve ser revelado ao chamador.                      |
+| `409`  | Conflito de unicidade ou de estado que impeça a operação.                                |
+| `500`  | Falha inesperada do servidor; não use para erros esperados que tenham status específico. |
 
 Esses códigos são critérios, não uma lista obrigatória para cada endpoint. A API atual não implementa autenticação nem cria/atualiza recursos, então `201`, `204`, `401`, `403` e `409` ainda não são padrões exercitados por rotas existentes.
 
-### Tratamento de erros atualmente observado
+### Tratamento centralizado de erros
 
-Não há `setErrorHandler` próprio em `src/app.ts` nem tratamento por rota em `/categorias`; erros não capturados seguem o tratamento padrão do Fastify. A integração Zod está configurada, mas nenhuma rota atual valida entrada.
+`src/plugins/erros.ts` registra `setErrorHandler` e `setNotFoundHandler` por meio de `fastify-plugin`, e `src/app.ts` o registra com os plugins de infraestrutura antes das rotas. Todas as respostas de erro usam o formato:
 
-Assim, ainda não existe um envelope de erro padronizado pelo projeto nem teste que fixe o corpo de uma resposta inesperada/validação. Não dependa de detalhes da mensagem padrão do Fastify ou do Prisma como contrato público. Antes de implementar rotas com erros sensíveis, é necessária uma decisão sobre formato comum e sanitização de erros inesperados em produção.
+```json
+{
+  "status": 400,
+  "error": "VALIDATION_ERROR",
+  "message": "Os dados da requisição são inválidos.",
+  "details": [{ "field": "/nome", "message": "..." }]
+}
+```
+
+`details` é opcional e, para validação Zod, contém uma entrada por problema com `field` (caminho da entrada) e `message`. A resposta não repassa metadados internos do validador.
+
+O handler usa `hasZodFastifySchemaValidationErrors` para erros de entrada e devolve `400` com código `VALIDATION_ERROR`. Erros comuns com status HTTP de cliente mantêm esse status, mas usam códigos/mensagens públicos fixos: `BAD_REQUEST`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT` ou `REQUEST_ERROR`. Uma rota inexistente recebe o mesmo contrato por `setNotFoundHandler`.
+
+Falhas inesperadas e erros identificados por `isResponseSerializationError` resultam em `500 INTERNAL_SERVER_ERROR`. O erro completo é enviado a `request.log.error`; stack trace e mensagem interna não são enviados ao cliente. `GET /categorias` documenta esse schema de resposta 500 no próprio contrato OpenAPI.
+
+Os testes `tests/api/erros.test.ts` registram rotas de validação/falha apenas na instância de teste; elas não fazem parte da API de produção. Cobrem a validação Zod, 404, falha inesperada e incompatibilidade de serialização sem publicar detalhes internos.
 
 ## 8. OpenAPI e Scalar
 
@@ -137,7 +156,7 @@ Assim, ainda não existe um envelope de erro padronizado pelo projeto nem teste 
 - Salve testes em `tests/api/<dominio>.test.ts`; use `describe` pelo método/caminho e `it` para comportamentos distintos.
 - Crie a aplicação com `criarAplicacao()` de `src/app.ts`. Faça requisições HTTP com `app.inject({ method, url, payload })`; não é necessário abrir uma porta para esses testes.
 - Feche sempre a aplicação em `finally` com `await app.close()`, para executar os hooks de fechamento do Prisma.
-- Teste separadamente sucesso, entradas inválidas, ausência de recurso e outros erros que a rota declare. Confira status, formato JSON, campos públicos e, quando aplicável, ausência de dados internos. A suíte atual verifica status e formato básico de `/categorias` e `/health`; não testa validação de entrada nem erros.
+- Teste separadamente sucesso, entradas inválidas, ausência de recurso e outros erros que a rota declare. Confira status, formato JSON, campos públicos e, quando aplicável, ausência de dados internos. `tests/api/erros.test.ts` demonstra os contratos centrais de validação, 404 e 500.
 - `tests/api/prisma.test.ts` chama `await app.ready()` antes de consultar diretamente `app.prisma`. `app.inject` prepara a aplicação para a requisição.
 - O teste atual de categorias não cria fixtures e aceita uma lista vazia. Não presuma conteúdo do seed; se uma rota depender de dados específicos, prepare-os explicitamente no banco de teste e limpe somente os registros pertencentes ao teste.
 
@@ -197,13 +216,12 @@ Não existe script separado chamado `test:api`; os seletores de arquivo/diretór
 - O resumo de estado não listava `categorias.ts`/seu teste e dizia que a integração Zod ainda precisava ser confirmada; os arquivos reais comprovam ambos.
 - O plano de APIs registrava apenas `GET /health`, apesar de `GET /categorias` já existir; a documentação foi atualizada sem adicionar endpoint.
 - A especificação OpenAPI servida pelo Scalar está em `/reference/openapi.json` e `/reference` redireciona para `/reference/`; o endereço `/documentation/json` não existe nesta configuração.
-- `/categorias` é o exemplo atual de schema de resposta, `select` Prisma e documentação por descrição/tag. Não há rota existente com validação de parâmetros, query ou body.
-- Não há handler global próprio nem contrato de payload de erro. A decisão de padronizar e sanitizar erros inesperados deve preceder rotas que possam expor dados sensíveis.
+- `/categorias` é o exemplo atual de schema de resposta, `select` Prisma e documentação por descrição/tag. As rotas de produção ainda não validam parâmetros, query ou body; `tests/api/erros.test.ts` demonstra a validação em uma rota isolada da aplicação de teste.
+- O handler central padroniza validações, erros HTTP de cliente, rotas inexistentes e falhas inesperadas; detalhes das falhas inesperadas ficam apenas no log do servidor.
 - `GET /health` não declara schema/descrição explícitos de resposta no código; o contrato OpenAPI dessa rota está menos completo que o de categorias.
 
 ## 14. Pendências que dependem de decisão humana
 
-- Definir se a API adotará um envelope comum de erros e como sanitizar falhas inesperadas em produção; não foi inventado um formato nem alterado o comportamento atual nesta auditoria.
-- Definir o contrato de erros de validação (incluindo detalhes expostos) ao implementar a primeira rota com entrada Zod e cobri-lo com testes.
+- O contrato de erro comum está definido nesta sprint. Revisar o formato e códigos públicos antes de considerá-los estáveis para consumidores externos.
 - Completar a documentação OpenAPI de `/health` se o contrato detalhado dessa rota for desejado.
 - Definir caminhos e convenções para cada novo domínio antes da implementação; `/categorias` é evidência de plural em português, não uma decisão automática para todos os casos.
