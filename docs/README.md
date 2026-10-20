@@ -11,11 +11,10 @@
 2. Leia `02_ARQUITETURA_E_INFRAESTRUTURA.md` para entender a organização técnica.
 3. Leia `03_REGRAS_DE_NEGOCIO.md` antes de propor qualquer mudança de comportamento.
 4. Leia `04_MODELO_DE_DADOS_E_INTEGRIDADE.md` antes de alterar Prisma, migrations ou banco.
-5. Leia `05_PLANO_DE_APIS.md` para planejar endpoints sem fingir que já estão implementados.
-6. Use `AGENTS.md` como instrução persistente para agentes que trabalhem no repositório.
-7. Use `06_FLUXOS_E_DIAGRAMAS.md` para visualizar os fluxos.
-8. Use `07_TESTES_E_COMANDOS.md` para executar verificações e preservar o ambiente.
-9. Use `08_FLUXO_DE_TRABALHO_COM_AGENTES.md` para dividir tarefas entre agentes.
+5. Leia `05_PLANO_DE_APIS.md` para distinguir endpoints planejados dos implementados.
+6. Leia `06_TESTES.md` antes de executar testes ou migrations de teste.
+7. Leia `06_PADRAO_DAS_ROTAS_API.md` ao verificar ou criar rotas HTTP.
+8. Use `AGENTS.md` na raiz como instrução persistente para agentes que trabalhem no repositório.
 
 ## Regra de ouro
 
@@ -29,9 +28,8 @@ A documentação descreve decisões e estado conhecidos, mas **não substitui a 
 - `03_REGRAS_DE_NEGOCIO.md` — escopo e regras aprovadas.
 - `04_MODELO_DE_DADOS_E_INTEGRIDADE.md` — tabelas, relações e invariantes.
 - `05_PLANO_DE_APIS.md` — plano de endpoints por domínio; não é implementação.
-- `06_FLUXOS_E_DIAGRAMAS.md` — diagramas Mermaid.
-- `07_TESTES_E_COMANDOS.md` — comandos seguros e critérios de validação.
-- `08_FLUXO_DE_TRABALHO_COM_AGENTES.md` — processo de colaboração e limites dos agentes.
+- `06_TESTES.md` — configuração e execução de testes com proteção do banco.
+- `06_PADRAO_DAS_ROTAS_API.md` — convenções verificadas para implementar e testar rotas.
 
 ## Convenções deste pacote
 

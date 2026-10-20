@@ -4,7 +4,7 @@
 
 Este documento é um **plano de endpoints**, não afirma que as APIs listadas já foram implementadas. O agente deve conferir as rotas reais em `src/routes/` antes de concluir qualquer status.
 
-Base atual conhecida: Fastify 5.x, TypeScript, Prisma 6.19.3, Zod, Swagger/OpenAPI e Scalar. A rota já implementada é `GET /health`.
+Base atual conhecida: Fastify 5.x, TypeScript, Prisma 6.19.3, Zod, Swagger/OpenAPI e Scalar. Estão implementadas `GET /health` e `GET /categorias`; confira o estado atual em `src/routes/`.
 
 ## 2. Princípios para todas as rotas
 
@@ -24,9 +24,15 @@ Base atual conhecida: Fastify 5.x, TypeScript, Prisma 6.19.3, Zod, Swagger/OpenA
 | ------ | ---------------------------- | ---------------------------- | ---------------------------------------- | -------------------------------------------------------- |
 | GET    | `/health`                    | Público                      | Verificar disponibilidade básica da API. | Implementada e testada.                                  |
 | GET    | `/reference`                 | Desenvolvimento/documentação | Interface Scalar para explorar OpenAPI.  | Visualizada funcionando; conferir configuração real.     |
-| GET    | endpoint OpenAPI configurado | Documentação                 | Servir especificação gerada.             | Confirmar caminho real em `src/plugins/documentacao.ts`. |
+| GET    | `/reference/openapi.json`     | Documentação                 | Servir a especificação OpenAPI gerada pelo Scalar. | Confirmada no runtime; `/reference` redireciona para `/reference/`. |
 
 Não usar `/reference` como prova de que todas as rotas estão documentadas: cada endpoint precisa de descrição/schema.
+
+## 3.1 Catálogo já implementado
+
+| Método | Caminho        | Objetivo                                      | Estado |
+| ------ | -------------- | --------------------------------------------- | ------ |
+| GET    | `/categorias`  | Listar categorias ativas em ordem de exibição. | Implementada; ver `src/routes/categorias.ts` e `tests/api/categorias.test.ts`. |
 
 ## 4. Etapa B — Catálogo público
 
@@ -46,7 +52,7 @@ Regras:
 - validar paginação/filtros se forem implementados;
 - não expor campos administrativos internos.
 
-Caminhos HTTP exatos e convenções de pluralização devem ser definidos antes da primeira rota e mantidos consistentes.
+Para as próximas rotas, definir os caminhos exatos antes de implementá-las e manter convenções consistentes. A rota existente `/categorias` usa nome plural em português.
 
 ## 5. Etapa C — Administração do catálogo
 
