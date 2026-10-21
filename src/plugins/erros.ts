@@ -1,20 +1,27 @@
 import fp from "fastify-plugin";
-import type { FastifyInstance } from "fastify";
+import { errorCodes, type FastifyInstance } from "fastify";
 import { hasZodFastifySchemaValidationErrors, isResponseSerializationError } from "@fastify/type-provider-zod";
 
-function obterStatusCode(erro: unknown): number | undefined {
-  if (
-    typeof erro === "object" &&
-    erro !== null &&
-    "statusCode" in erro &&
-    typeof erro.statusCode === "number" &&
-    erro.statusCode >= 400 &&
-    erro.statusCode < 600
-  ) {
-    return erro.statusCode;
-  }
+const errosHttpFastify: Array<{
+  tipo: new (...args: never[]) => Error;
+  statusCode: number;
+}> = [
+  { tipo: errorCodes.FST_ERR_VALIDATION, statusCode: 400 },
+  { tipo: errorCodes.FST_ERR_NOT_FOUND, statusCode: 404 },
+  { tipo: errorCodes.FST_ERR_CTP_BODY_TOO_LARGE, statusCode: 413 },
+  { tipo: errorCodes.FST_ERR_CTP_INVALID_MEDIA_TYPE, statusCode: 415 },
+  { tipo: errorCodes.FST_ERR_CTP_INVALID_CONTENT_LENGTH, statusCode: 400 },
+  { tipo: errorCodes.FST_ERR_CTP_EMPTY_JSON_BODY, statusCode: 400 },
+  { tipo: errorCodes.FST_ERR_CTP_INVALID_JSON_BODY, statusCode: 400 },
+];
 
-  return undefined;
+function obterStatusCodeFastify(erro: unknown): number | undefined {
+  const erroReconhecido = errosHttpFastify.find(({ tipo }) => erro instanceof tipo);
+  const statusCode = erroReconhecido?.statusCode;
+
+  return statusCode !== undefined && statusCode >= 400 && statusCode < 500
+    ? statusCode
+    : undefined;
 }
 
 async function errosPlugin(app: FastifyInstance) {
@@ -31,9 +38,11 @@ async function errosPlugin(app: FastifyInstance) {
       });
     }
 
-    const statusCode = isResponseSerializationError(erro) ? 500 : (obterStatusCode(erro) ?? 500);
+    const statusCode = isResponseSerializationError(erro)
+      ? 500
+      : (obterStatusCodeFastify(erro) ?? 500);
 
-    if (statusCode >= 500 || isResponseSerializationError(erro)) {
+    if (statusCode >= 500) {
       request.log.error({ err: erro }, "Erro inesperado ao processar requisição");
       return reply.code(500).send({
         status: 500,

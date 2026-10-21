@@ -136,11 +136,11 @@ Esses códigos são critérios, não uma lista obrigatória para cada endpoint. 
 
 `details` é opcional e, para validação Zod, contém uma entrada por problema com `field` (caminho da entrada) e `message`. A resposta não repassa metadados internos do validador.
 
-O handler usa `hasZodFastifySchemaValidationErrors` para erros de entrada e devolve `400` com código `VALIDATION_ERROR`. Erros comuns com status HTTP de cliente mantêm esse status, mas usam códigos/mensagens públicos fixos: `BAD_REQUEST`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT` ou `REQUEST_ERROR`. Uma rota inexistente recebe o mesmo contrato por `setNotFoundHandler`.
+O handler usa `hasZodFastifySchemaValidationErrors` para erros de entrada e devolve `400` com código `VALIDATION_ERROR`. Para outros erros, somente instâncias de classes HTTP reconhecidas de Fastify podem manter o status 4xx, validado no intervalo de 400 a 499; o código e a mensagem enviados ao cliente vêm de valores fixos, nunca do conteúdo arbitrário do erro. Erros desconhecidos, mesmo que tenham propriedades `statusCode` ou `message`, viram 500 genérico. Uma rota inexistente recebe 404 pelo `setNotFoundHandler`.
 
 Falhas inesperadas e erros identificados por `isResponseSerializationError` resultam em `500 INTERNAL_SERVER_ERROR`. O erro completo é enviado a `request.log.error`; stack trace e mensagem interna não são enviados ao cliente. `GET /categorias` documenta esse schema de resposta 500 no próprio contrato OpenAPI.
 
-Os testes `tests/api/erros.test.ts` registram rotas de validação/falha apenas na instância de teste; elas não fazem parte da API de produção. Cobrem a validação Zod, 404, falha inesperada e incompatibilidade de serialização sem publicar detalhes internos.
+O projeto não instala nem registra `@fastify/sensible`, nem possui uma classe própria de erro HTTP de domínio. Portanto, mensagens personalizadas como “Categoria não encontrada.” não são consideradas confiáveis nem publicadas nesta etapa; criar um mecanismo para erros de domínio depende de uma decisão técnica futura. Os testes `tests/api/erros.test.ts` registram rotas auxiliares somente na instância de teste e cobrem validação Zod, 404, status arbitrário rejeitado, falha inesperada e incompatibilidade de serialização sem publicar detalhes internos. Um teste cobre em conjunto os dois cenários 500 (erro inesperado e serialização).
 
 ## 8. OpenAPI e Scalar
 
@@ -217,11 +217,12 @@ Não existe script separado chamado `test:api`; os seletores de arquivo/diretór
 - O plano de APIs registrava apenas `GET /health`, apesar de `GET /categorias` já existir; a documentação foi atualizada sem adicionar endpoint.
 - A especificação OpenAPI servida pelo Scalar está em `/reference/openapi.json` e `/reference` redireciona para `/reference/`; o endereço `/documentation/json` não existe nesta configuração.
 - `/categorias` é o exemplo atual de schema de resposta, `select` Prisma e documentação por descrição/tag. As rotas de produção ainda não validam parâmetros, query ou body; `tests/api/erros.test.ts` demonstra a validação em uma rota isolada da aplicação de teste.
-- O handler central padroniza validações, erros HTTP de cliente, rotas inexistentes e falhas inesperadas; detalhes das falhas inesperadas ficam apenas no log do servidor.
+- O handler central padroniza validações, erros HTTP Fastify reconhecidos, rotas inexistentes e falhas inesperadas; detalhes das falhas inesperadas ficam apenas no log do servidor. Não há mecanismo instalado para mensagens específicas de erros HTTP do domínio.
 - `GET /health` não declara schema/descrição explícitos de resposta no código; o contrato OpenAPI dessa rota está menos completo que o de categorias.
 
 ## 14. Pendências que dependem de decisão humana
 
-- O contrato de erro comum está definido nesta sprint. Revisar o formato e códigos públicos antes de considerá-los estáveis para consumidores externos.
+- Mensagens específicas para erros HTTP intencionais do domínio dependem da escolha de um mecanismo confiável para criá-los; `@fastify/sensible` não está instalado e não foi adicionada dependência nesta tarefa.
+- Revisar o formato e os códigos públicos antes de considerá-los estáveis para consumidores externos.
 - Completar a documentação OpenAPI de `/health` se o contrato detalhado dessa rota for desejado.
 - Definir caminhos e convenções para cada novo domínio antes da implementação; `/categorias` é evidência de plural em português, não uma decisão automática para todos os casos.
