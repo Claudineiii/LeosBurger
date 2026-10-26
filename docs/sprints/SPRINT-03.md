@@ -1,6 +1,6 @@
 # Sprint 03 — Listagem pública de itens
 
-**Estado:** Próxima sprint de implementação, salvo se a rota já tiver sido criada.
+**Estado:** Concluída e validada.
 
 ## Objetivo
 Implementar ou auditar `GET /itens`, retornando itens ativos e permitindo filtro opcional por categoria.
@@ -37,7 +37,7 @@ git diff --check
 Confira `package.json` antes de usar um comando específico de teste. Não contorne a proteção do banco de testes.
 
 ## Critérios de conclusão
-- [ ] Somente itens ativos são listados; filtro funciona; ordenação é estável; entradas inválidas são tratadas; resposta não expõe campos internos; testes e build passam.
+- [x] Somente itens ativos são listados; filtro funciona; ordenação é estável; entradas inválidas são tratadas; resposta não expõe campos internos; testes e build passam.
 
 ## O que esta sprint ensina
 GET, query string, filtros Prisma, schema de resposta, ordenação estável e testes via `app.inject()`.
@@ -46,8 +46,8 @@ GET, query string, filtros Prisma, schema de resposta, ordenação estável e te
 Se o usuário decidir delegar, o agente deve inspecionar o estado real, implementar o escopo completo, executar os testes e o build, revisar o diff e atualizar a documentação. Não deve ampliar o escopo nem alterar decisões aprovadas.
 
 ## Registro ao concluir
-- Resultado dos testes:
-- Resultado do build:
-- Arquivos alterados:
-- Documentação atualizada:
-- Pendências ou riscos:
+- Resultado dos testes: `npm test -- --run tests/api/itens.test.ts` passou (1 arquivo, 5 testes); `npm test -- --run` passou (7 arquivos, 33 testes).
+- Resultado do build: `npm run build` passou.
+- Arquivos alterados: `src/routes/itens.ts`, `src/app.ts`, `tests/api/itens.test.ts`, `docs/01_ESTADO_ATUAL.md`, `docs/05_PLANO_DE_APIS.md` e este registro.
+- Documentação atualizada: endpoint, filtro, ordenação, campos públicos e estado da sprint.
+- Pendências ou riscos: `adicionais` não é retornado porque é JSON sem contrato público definido; a consulta ao banco de testes encontrou zero itens existentes. Nenhuma alteração de schema ou migration foi necessária.

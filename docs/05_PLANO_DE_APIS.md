@@ -4,7 +4,7 @@
 
 Este documento é um **plano de endpoints**, não afirma que as APIs listadas já foram implementadas. O agente deve conferir as rotas reais em `src/routes/` antes de concluir qualquer status.
 
-Base atual conhecida: Fastify 5.x, TypeScript, Prisma 6.19.3, Zod, Swagger/OpenAPI e Scalar. Estão implementadas `GET /health` e `GET /categorias`; confira o estado atual em `src/routes/`.
+Base atual conhecida: Fastify 5.x, TypeScript, Prisma 6.19.3, Zod, Swagger/OpenAPI e Scalar. Estão implementadas `GET /health`, `GET /categorias` e `GET /itens`; confira o estado atual em `src/routes/`.
 
 ## 2. Princípios para todas as rotas
 
@@ -33,13 +33,14 @@ Não usar `/reference` como prova de que todas as rotas estão documentadas: cad
 | Método | Caminho        | Objetivo                                      | Estado |
 | ------ | -------------- | --------------------------------------------- | ------ |
 | GET    | `/categorias`  | Listar categorias ativas em ordem de exibição. | Implementada; ver `src/routes/categorias.ts` e `tests/api/categorias.test.ts`. |
+| GET    | `/itens`       | Listar itens ativos; filtro opcional `categoriaId`. | Implementada; ver `src/routes/itens.ts` e `tests/api/itens.test.ts`. |
+
+`GET /itens` retorna `id`, `categoriaId`, `nome`, `descricao`, `preco`, `imagemUrl` e `ordem`. O campo JSON `adicionais` não é exposto porque o modelo não define um contrato compreensível para a API pública. A resposta ordena por `ordem`, `nome` e `id`; `categoriaId` inválido é rejeitado com `400`.
 
 ## 4. Etapa B — Catálogo público
 
-Planejar primeiro:
+Próximos endpoints públicos a planejar:
 
-- consultar lista de categorias;
-- consultar itens ativos por categoria;
 - consultar detalhes de um item;
 - consultar combos ativos;
 - consultar detalhes de um combo.
