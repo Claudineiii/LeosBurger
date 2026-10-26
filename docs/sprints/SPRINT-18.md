@@ -14,7 +14,7 @@ Confirmar que o backend está consistente, testado e documentado antes da integr
 1. Conferir o estado do Git, arquivos modificados e commits pendentes. Não sobrescrever trabalho não relacionado.
 2. Executar build, suíte completa de testes e `git diff --check`; usar scripts existentes no `package.json`.
 3. Comparar cada rota real com o OpenAPI e corrigir divergências de contratos, respostas e erros.
-4. Revisar `docs/01_ESTADO_ATUAL.md`, `docs/05_PLANO_DE_APIS.md`, `docs/06_TESTES.md` e `docs/06_PADRAO_DAS_ROTAS_API.md` conforme a estrutura real.
+4. Revisar `docs/01_ESTADO_ATUAL.md`, `docs/05_PLANO_DE_APIS.md`, `docs/07_TESTES.md` e `docs/06_PADRAO_DAS_ROTAS_API.md` conforme a estrutura real.
 5. Confirmar que README e documentação de setup descrevem comandos, variáveis necessárias e dependências reais, sem segredos.
 6. Verificar que o modelo de oito tabelas e migrações não sofreu alterações não aprovadas.
 7. Verificar as regras fixas: JWT sem revogação; prazos de sessão; estados e fluxos; visitante PIX; taxas de entrega; adicionais JSON; cupons sem tabela; sem exclusão física; sem gateway real.
