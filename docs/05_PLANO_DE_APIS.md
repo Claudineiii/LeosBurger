@@ -4,7 +4,7 @@
 
 Este documento é um **plano de endpoints**, não afirma que as APIs listadas já foram implementadas. O agente deve conferir as rotas reais em `src/routes/` antes de concluir qualquer status.
 
-Base atual conhecida: Fastify 5.x, TypeScript, Prisma 6.19.3, Zod, Swagger/OpenAPI e Scalar. Estão implementadas `GET /health`, `GET /categorias` e `GET /itens`; confira o estado atual em `src/routes/`.
+Base atual conhecida: Fastify 5.x, TypeScript, Prisma 6.19.3, Zod, Swagger/OpenAPI e Scalar. Estão implementadas `GET /health`, `GET /categorias`, `GET /itens` e `GET /combos`; confira o estado atual em `src/routes/`.
 
 ## 2. Princípios para todas as rotas
 
@@ -35,6 +35,7 @@ Não usar `/reference` como prova de que todas as rotas estão documentadas: cad
 | GET    | `/categorias`  | Listar categorias ativas em ordem de exibição. | Implementada; ver `src/routes/categorias.ts` e `tests/api/categorias.test.ts`. |
 | GET    | `/itens`       | Listar itens ativos; filtro opcional `categoriaId`. | Implementada; ver `src/routes/itens.ts` e `tests/api/itens.test.ts`. |
 | GET    | `/itens/:id`   | Consultar os dados públicos de um item ativo. | Implementada; ver `src/routes/itens.ts` e `tests/api/itens.test.ts`. |
+| GET    | `/combos`      | Listar combos ativos com composição disponível. | Implementada; ver `src/routes/combos.ts` e `tests/api/combos.test.ts`. |
 
 `GET /itens` retorna `id`, `categoriaId`, `nome`, `descricao`, `preco`, `imagemUrl` e `ordem`. O campo JSON `adicionais` não é exposto porque o modelo não define um contrato compreensível para a API pública. A resposta ordena por `ordem`, `nome` e `id`; `categoriaId` inválido é rejeitado com `400`.
 
@@ -42,14 +43,17 @@ Não usar `/reference` como prova de que todas as rotas estão documentadas: cad
 
 ## 4. Etapa B — Catálogo público
 
-Próximos endpoints públicos a planejar:
+Próximo endpoint público a implementar:
 
-- consultar combos ativos;
 - consultar detalhes de um combo.
 
 Regras:
 
 - o cliente público vê apenas itens/combos disponíveis para venda;
+- `GET /combos` retorna somente combos ativos com pelo menos um componente, desde que todos os itens componentes estejam ativos;
+- combos sem composição ou com qualquer componente inativo ficam ocultos; nenhum componente é substituído automaticamente;
+- a composição pública inclui `id`, `nome` e `quantidade` de cada item, sem campos internos da associação;
+- o preço Decimal do combo é convertido para número, e a lista é ordenada por `ordem`, `nome` e `id`;
 - não tratar combo como categoria;
 - adicionais permitidos devem respeitar a configuração do item;
 - validar paginação/filtros se forem implementados;

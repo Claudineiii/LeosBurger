@@ -1,6 +1,6 @@
 # Sprint 05 — Listagem pública de combos
 
-**Estado:** Executar após as Sprints 3 e 4.
+**Estado:** Concluída e validada após as Sprints 3 e 4.
 
 ## Objetivo
 Implementar ou auditar `GET /combos` respeitando ativação do combo e de seus componentes.
@@ -37,7 +37,7 @@ git diff --check
 Confira `package.json` antes de usar um comando específico de teste. Não contorne a proteção do banco de testes.
 
 ## Critérios de conclusão
-- [ ] Só combos ativos e válidos aparecem; um componente inativo oculta o combo; ordenação estável; testes e build passam.
+- [x] Só combos ativos com composição não vazia e todos os componentes ativos aparecem; ordenação estável; testes e build passam.
 
 ## O que esta sprint ensina
 Relações Prisma, filtros relacionais, composição e regras de catálogo.
@@ -46,8 +46,8 @@ Relações Prisma, filtros relacionais, composição e regras de catálogo.
 Se o usuário decidir delegar, o agente deve inspecionar o estado real, implementar o escopo completo, executar os testes e o build, revisar o diff e atualizar a documentação. Não deve ampliar o escopo nem alterar decisões aprovadas.
 
 ## Registro ao concluir
-- Resultado dos testes:
-- Resultado do build:
-- Arquivos alterados:
-- Documentação atualizada:
-- Pendências ou riscos:
+- Resultado dos testes: `npm test -- --run tests/api/combos.test.ts` passou (1 arquivo, 4 testes); `npm test -- --run` passou (8 arquivos, 41 testes).
+- Resultado do build: `npm run build` passou.
+- Arquivos alterados: `src/routes/combos.ts`, `src/app.ts`, `tests/api/combos.test.ts`, `docs/01_ESTADO_ATUAL.md`, `docs/05_PLANO_DE_APIS.md`, este registro e `docs/sprints/MAPA.md`.
+- Documentação atualizada: rota pública, formato da composição, filtros de disponibilidade e estado concluído.
+- Pendências ou riscos: `GET /combos/:id` continua planejada para a Sprint 6. Não houve alteração de schema, migrations ou dependências.
