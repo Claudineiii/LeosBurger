@@ -2,7 +2,7 @@
 
 ## Resumo executivo
 
-O LEOSBurger é um cardápio digital com pedidos online. A infraestrutura básica de banco e backend foi preparada. A API já inicia com Fastify, possui rotas de saúde, listagem pública de categorias, itens e combos e consulta pública de detalhe de item, integração com Prisma e documentação OpenAPI exibida pelo Scalar. As demais APIs de negócio ainda serão desenvolvidas gradualmente pelo usuário.
+O LEOSBurger é um cardápio digital com pedidos online. A infraestrutura básica de banco e backend foi preparada. A API já inicia com Fastify, possui rotas de saúde, listagem pública de categorias, itens e combos, consulta pública de detalhe de itens e combos, integração com Prisma e documentação OpenAPI exibida pelo Scalar. As demais APIs de negócio ainda serão desenvolvidas gradualmente pelo usuário.
 
 ## Tecnologias e versões conhecidas
 
@@ -58,3 +58,5 @@ C:/LeosBurger/
 ```
 
 `GET /combos` retorna somente combos ativos com composição não vazia e todos os componentes ativos. A resposta inclui os campos públicos do combo e cada item componente com `id`, `nome` e `quantidade`; preços Decimal são serializados como número.
+
+`GET /combos/:id` retorna os mesmos campos públicos e a mesma composição ordenada, somente para combos disponíveis. O parâmetro `id` é validado como UUID; um identificador inválido retorna `400`, enquanto combos inexistentes, inativos, sem componentes ou com algum componente inativo retornam o mesmo `404` genérico.

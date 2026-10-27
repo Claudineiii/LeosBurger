@@ -7,7 +7,7 @@
 | 03 | Listagem pública de itens | Concluída; consultar `SPRINT-03.md` |
 | 04 | Detalhes de item | Concluída; consultar `SPRINT-04.md` |
 | 05 | Listagem pública de combos | Concluída; consultar `SPRINT-05.md` |
-| 06 | Detalhes de combo | Após 05 |
+| 06 | Detalhes de combo | Concluída; consultar `SPRINT-06.md` |
 | 07 | Autenticação JWT e autorização | Após base pública; antes de rotas privadas |
 | 08 | Administração de categorias e itens | Após 07 |
 | 09 | Administração de combos | Após 08 |

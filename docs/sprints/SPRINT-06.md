@@ -1,6 +1,6 @@
 # Sprint 06 — Detalhes de um combo
 
-**Estado:** Executar após a Sprint 5.
+**Estado:** Concluída e validada após a Sprint 5.
 
 ## Objetivo
 Implementar ou auditar `GET /combos/:id`, incluindo composição e a regra de disponibilidade.
@@ -36,7 +36,7 @@ git diff --check
 Confira `package.json` antes de usar um comando específico de teste. Não contorne a proteção do banco de testes.
 
 ## Critérios de conclusão
-- [ ] Detalhe segue a mesma regra de disponibilidade da listagem; composição correta; erros consistentes; testes passam.
+- [x] Detalhe segue a mesma regra de disponibilidade da listagem; composição correta; erros consistentes; testes passam.
 
 ## O que esta sprint ensina
 Detalhe de recurso, inclusão de relações e consistência entre endpoints.
@@ -45,8 +45,8 @@ Detalhe de recurso, inclusão de relações e consistência entre endpoints.
 Se o usuário decidir delegar, o agente deve inspecionar o estado real, implementar o escopo completo, executar os testes e o build, revisar o diff e atualizar a documentação. Não deve ampliar o escopo nem alterar decisões aprovadas.
 
 ## Registro ao concluir
-- Resultado dos testes:
-- Resultado do build:
-- Arquivos alterados:
-- Documentação atualizada:
-- Pendências ou riscos:
+- Resultado dos testes: `npm test -- --run tests/api/combos.test.ts` passou (1 arquivo, 10 testes); `npm test -- --run` passou (8 arquivos, 47 testes).
+- Resultado do build: `npm run build` passou.
+- Arquivos alterados: `src/routes/combos.ts`, `tests/api/combos.test.ts`, `docs/01_ESTADO_ATUAL.md`, `docs/05_PLANO_DE_APIS.md`, este registro e `docs/sprints/MAPA.md`. O registro em `src/app.ts` já existia e foi confirmado.
+- Documentação atualizada: contrato de `GET /combos/:id`, respostas `400`, `404` e `500`, regra compartilhada de disponibilidade e conclusão da sprint.
+- Pendências ou riscos: nenhuma pendência específica da Sprint 6 identificada. Nenhuma alteração de schema, migration ou dependência foi necessária.

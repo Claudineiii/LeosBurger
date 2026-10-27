@@ -244,4 +244,215 @@ describe("GET /combos", () => {
       expect(documentoSerializado).toContain("preco");
     });
   });
+
+  describe("GET /combos/:id", () => {
+    it("retorna combo disponível com composição ordenada e somente campos públicos", async () => {
+      await executarComBancoDeTeste(
+        async (app, criarCategoria, criarItem, criarCombo, adicionarItem) => {
+          const categoria = await criarCategoria();
+          const itemZ = await criarItem(categoria.id, `Componente Z ${randomUUID()}`);
+          const itemA = await criarItem(categoria.id, `Componente A ${randomUUID()}`);
+          const combo = await criarCombo(`Detalhe ${randomUUID()}`, {
+            descricao: "Descrição do combo",
+            imagemUrl: "https://example.com/detalhe-combo.png",
+            ordem: 4,
+            preco: 56.75,
+          });
+
+          await adicionarItem(combo.id, itemZ.id, 3);
+          await adicionarItem(combo.id, itemA.id, 2);
+
+          const resposta = await app.inject({
+            method: "GET",
+            url: `/combos/${combo.id}`,
+          });
+          const corpo = resposta.json();
+
+          expect(resposta.statusCode).toBe(200);
+          expect(corpo).toEqual({
+            id: combo.id,
+            nome: combo.nome,
+            descricao: "Descrição do combo",
+            preco: 56.75,
+            imagemUrl: "https://example.com/detalhe-combo.png",
+            ordem: 4,
+            itens: [
+              { id: itemA.id, nome: itemA.nome, quantidade: 2 },
+              { id: itemZ.id, nome: itemZ.nome, quantidade: 3 },
+            ],
+          });
+          expect(typeof corpo.preco).toBe("number");
+          expect(Object.keys(corpo.itens[0]).sort()).toEqual(["id", "nome", "quantidade"]);
+          expect(resposta.body).not.toContain('"ativo"');
+          expect(resposta.body).not.toContain("criadoEm");
+          expect(resposta.body).not.toContain("atualizadoEm");
+          expect(resposta.body).not.toContain("itensCombo");
+        },
+      );
+    });
+
+    it("retorna 400 no formato padrão para um identificador inválido", async () => {
+      await executarComBancoDeTeste(async (app) => {
+        const resposta = await app.inject({
+          method: "GET",
+          url: "/combos/nao-e-uuid",
+        });
+
+        expect(resposta.statusCode).toBe(400);
+        expect(resposta.json()).toEqual({
+          status: 400,
+          error: "VALIDATION_ERROR",
+          message: "Os dados da requisição são inválidos.",
+          details: [
+            {
+              field: "/id",
+              message: "id deve ser um UUID válido.",
+            },
+          ],
+        });
+      });
+    });
+
+    it("retorna 404 genérico para um identificador válido inexistente", async () => {
+      await executarComBancoDeTeste(async (app) => {
+        const resposta = await app.inject({
+          method: "GET",
+          url: `/combos/${randomUUID()}`,
+        });
+
+        expect(resposta.statusCode).toBe(404);
+        expect(resposta.json()).toEqual({
+          status: 404,
+          error: "NOT_FOUND",
+          message: "Recurso não encontrado.",
+        });
+      });
+    });
+
+    it("oculta combos inativos, vazios ou com componente inativo", async () => {
+      await executarComBancoDeTeste(
+        async (app, criarCategoria, criarItem, criarCombo, adicionarItem) => {
+          const categoria = await criarCategoria();
+          const itemAtivo = await criarItem(categoria.id, `Ativo ${randomUUID()}`);
+          const itemInativo = await criarItem(
+            categoria.id,
+            `Inativo ${randomUUID()}`,
+            false,
+          );
+          const comboInativo = await criarCombo(`Desativado ${randomUUID()}`, {
+            ativo: false,
+          });
+          const comboVazio = await criarCombo(`Vazio ${randomUUID()}`);
+          const comboComItemInativo = await criarCombo(
+            `Com componente inativo ${randomUUID()}`,
+          );
+
+          await adicionarItem(comboInativo.id, itemAtivo.id);
+          await adicionarItem(comboComItemInativo.id, itemAtivo.id);
+          await adicionarItem(comboComItemInativo.id, itemInativo.id);
+
+          const combosIndisponiveis = [
+            comboInativo,
+            comboVazio,
+            comboComItemInativo,
+          ];
+          const respostas = await Promise.all(
+            combosIndisponiveis.map(async (combo) => ({
+              combo,
+              resposta: await app.inject({
+                method: "GET",
+                url: `/combos/${combo.id}`,
+              }),
+            })),
+          );
+          const erroEsperado = {
+            status: 404,
+            error: "NOT_FOUND",
+            message: "Recurso não encontrado.",
+          };
+
+          for (const { combo, resposta } of respostas) {
+            expect(resposta.statusCode).toBe(404);
+            expect(resposta.json()).toEqual(erroEsperado);
+            expect(resposta.body).not.toContain(combo.id);
+          }
+        },
+      );
+    });
+
+    it("aplica a mesma elegibilidade da listagem pública", async () => {
+      await executarComBancoDeTeste(
+        async (app, criarCategoria, criarItem, criarCombo, adicionarItem) => {
+          const categoria = await criarCategoria();
+          const itemAtivo = await criarItem(categoria.id, `Ativo ${randomUUID()}`);
+          const itemInativo = await criarItem(
+            categoria.id,
+            `Inativo ${randomUUID()}`,
+            false,
+          );
+          const comboElegivel = await criarCombo(`Elegível ${randomUUID()}`);
+          const comboComItemInativo = await criarCombo(
+            `Indisponível ${randomUUID()}`,
+          );
+          const comboVazio = await criarCombo(`Sem composição ${randomUUID()}`);
+
+          await adicionarItem(comboElegivel.id, itemAtivo.id);
+          await adicionarItem(comboComItemInativo.id, itemAtivo.id);
+          await adicionarItem(comboComItemInativo.id, itemInativo.id);
+
+          const respostaLista = await app.inject({ method: "GET", url: "/combos" });
+          const idsNaLista = respostaLista
+            .json()
+            .map((combo: { id: string }) => combo.id);
+          const [respostaElegivel, respostaComItemInativo, respostaVazio] =
+            await Promise.all([
+              app.inject({
+                method: "GET",
+                url: `/combos/${comboElegivel.id}`,
+              }),
+              app.inject({
+                method: "GET",
+                url: `/combos/${comboComItemInativo.id}`,
+              }),
+              app.inject({
+                method: "GET",
+                url: `/combos/${comboVazio.id}`,
+              }),
+            ]);
+
+          expect(respostaLista.statusCode).toBe(200);
+          expect(idsNaLista).toContain(comboElegivel.id);
+          expect(idsNaLista).not.toContain(comboComItemInativo.id);
+          expect(idsNaLista).not.toContain(comboVazio.id);
+          expect(respostaElegivel.statusCode).toBe(200);
+          expect(respostaElegivel.json().id).toBe(comboElegivel.id);
+          expect(respostaComItemInativo.statusCode).toBe(404);
+          expect(respostaVazio.statusCode).toBe(404);
+        },
+      );
+    });
+
+    it("documenta parâmetro, sucesso e erros no OpenAPI", async () => {
+      await executarComBancoDeTeste(async (app) => {
+        const operacao = app.swagger().paths?.["/combos/{id}"]?.get;
+
+        expect(operacao?.description).toBe(
+          "Busca um combo ativo com todos os componentes disponíveis.",
+        );
+        expect(operacao?.parameters).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              name: "id",
+              in: "path",
+              required: true,
+            }),
+          ]),
+        );
+        expect(operacao?.responses).toHaveProperty("200");
+        expect(operacao?.responses).toHaveProperty("400");
+        expect(operacao?.responses).toHaveProperty("404");
+        expect(operacao?.responses).toHaveProperty("500");
+      });
+    });
+  });
 });
