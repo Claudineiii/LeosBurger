@@ -1,6 +1,6 @@
 # Sprint 04 — Detalhes de um item
 
-**Estado:** Executar após a Sprint 3.
+**Estado:** Concluída e validada após a Sprint 3.
 
 ## Objetivo
 Implementar ou auditar `GET /itens/:id` com validação de identificador e exposição segura dos dados públicos.
@@ -36,7 +36,7 @@ git diff --check
 Confira `package.json` antes de usar um comando específico de teste. Não contorne a proteção do banco de testes.
 
 ## Critérios de conclusão
-- [ ] O recurso correto é retornado; inválidos e ausentes são tratados; item inativo não aparece; resposta pública explícita; testes passam.
+- [x] O recurso correto é retornado; inválidos e ausentes são tratados; item inativo não aparece; resposta pública explícita; testes passam.
 
 ## O que esta sprint ensina
 Parâmetros de rota, busca única, status HTTP e contrato de recurso.
@@ -45,8 +45,8 @@ Parâmetros de rota, busca única, status HTTP e contrato de recurso.
 Se o usuário decidir delegar, o agente deve inspecionar o estado real, implementar o escopo completo, executar os testes e o build, revisar o diff e atualizar a documentação. Não deve ampliar o escopo nem alterar decisões aprovadas.
 
 ## Registro ao concluir
-- Resultado dos testes:
-- Resultado do build:
-- Arquivos alterados:
-- Documentação atualizada:
-- Pendências ou riscos:
+- Resultado dos testes: `npm test -- --run tests/api/itens.test.ts` passou (1 arquivo, 9 testes; 5 de listagem e 4 de detalhe); `npm test -- --run` passou (7 arquivos, 37 testes).
+- Resultado do build: `npm run build` passou.
+- Arquivos atualizados nesta tarefa: `tests/api/itens.test.ts`, `docs/01_ESTADO_ATUAL.md`, `docs/05_PLANO_DE_APIS.md`, `docs/06_PADRAO_DAS_ROTAS_API.md` e este registro. `src/routes/itens.ts` já estava modificado antes do início; a implementação e seus schemas foram auditados e preservados sem sobrescrever essa alteração.
+- Documentação atualizada: rota de detalhe, parâmetros, respostas, regra de ocultação de itens inativos e status da sprint.
+- Pendências ou riscos: `adicionais` continua fora da resposta por não haver contrato público definido. Nenhuma alteração de schema ou migration foi necessária.

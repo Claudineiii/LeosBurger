@@ -76,7 +76,7 @@ async function executarComBancoDeTeste(
   }
 }
 
-describe("GET /itens", () => {
+describe("rotas de itens", () => {
   it("retorna lista vazia quando a categoria não tem itens ativos", async () => {
     await executarComBancoDeTeste(async (app, criarCategoria) => {
       const categoria = await criarCategoria();
@@ -87,6 +87,105 @@ describe("GET /itens", () => {
 
       expect(resposta.statusCode).toBe(200);
       expect(resposta.json()).toEqual([]);
+    });
+  });
+
+  describe("GET /itens/:id", () => {
+    it("retorna o item ativo com preço numérico e somente campos públicos", async () => {
+      await executarComBancoDeTeste(async (app, criarCategoria, criarItem) => {
+        const categoria = await criarCategoria();
+        const item = await criarItem(categoria.id, {
+          nome: `Detalhe ${randomUUID()}`,
+          ordem: 2,
+          descricao: "Descrição do item",
+          imagemUrl: "https://example.com/detalhe.png",
+          preco: 23.45,
+        });
+
+        const resposta = await app.inject({
+          method: "GET",
+          url: `/itens/${item.id}`,
+        });
+        const corpo = resposta.json();
+
+        expect(resposta.statusCode).toBe(200);
+        expect(corpo).toEqual({
+          id: item.id,
+          categoriaId: categoria.id,
+          nome: item.nome,
+          descricao: "Descrição do item",
+          preco: 23.45,
+          imagemUrl: "https://example.com/detalhe.png",
+          ordem: 2,
+        });
+        expect(typeof corpo.preco).toBe("number");
+        expect(resposta.body).not.toContain("adicionais");
+        expect(resposta.body).not.toContain("criadoEm");
+        expect(resposta.body).not.toContain("atualizadoEm");
+        expect(resposta.body).not.toContain('"ativo"');
+      });
+    });
+
+    it("retorna 400 para um UUID malformado", async () => {
+      await executarComBancoDeTeste(async (app) => {
+        const resposta = await app.inject({
+          method: "GET",
+          url: "/itens/id-invalido",
+        });
+
+        expect(resposta.statusCode).toBe(400);
+        expect(resposta.json()).toEqual({
+          status: 400,
+          error: "VALIDATION_ERROR",
+          message: "Os dados da requisição são inválidos.",
+          details: [
+            {
+              field: "/id",
+              message: "id deve ser um UUID válido.",
+            },
+          ],
+        });
+      });
+    });
+
+    it("retorna 404 para um UUID válido sem item correspondente", async () => {
+      await executarComBancoDeTeste(async (app) => {
+        const resposta = await app.inject({
+          method: "GET",
+          url: `/itens/${randomUUID()}`,
+        });
+
+        expect(resposta.statusCode).toBe(404);
+        expect(resposta.json()).toEqual({
+          status: 404,
+          error: "NOT_FOUND",
+          message: "Recurso não encontrado.",
+        });
+      });
+    });
+
+    it("retorna o mesmo 404 para um item inativo", async () => {
+      await executarComBancoDeTeste(async (app, criarCategoria, criarItem) => {
+        const categoria = await criarCategoria();
+        const item = await criarItem(categoria.id, {
+          nome: `Inativo ${randomUUID()}`,
+          ordem: 1,
+          ativo: false,
+        });
+
+        const resposta = await app.inject({
+          method: "GET",
+          url: `/itens/${item.id}`,
+        });
+
+        expect(resposta.statusCode).toBe(404);
+        expect(resposta.json()).toEqual({
+          status: 404,
+          error: "NOT_FOUND",
+          message: "Recurso não encontrado.",
+        });
+        expect(resposta.body).not.toContain(item.id);
+      });
     });
   });
 

@@ -2,7 +2,7 @@
 
 ## Resumo executivo
 
-O LEOSBurger é um cardápio digital com pedidos online. A infraestrutura básica de banco e backend foi preparada. A API já inicia com Fastify, possui rotas de saúde e listagem pública de categorias e itens com filtro opcional por categoria, integração com Prisma e documentação OpenAPI exibida pelo Scalar. As demais APIs de negócio ainda serão desenvolvidas gradualmente pelo usuário.
+O LEOSBurger é um cardápio digital com pedidos online. A infraestrutura básica de banco e backend foi preparada. A API já inicia com Fastify, possui rotas de saúde, listagem pública de categorias e itens e consulta pública de detalhe de item, integração com Prisma e documentação OpenAPI exibida pelo Scalar. As demais APIs de negócio ainda serão desenvolvidas gradualmente pelo usuário.
 
 ## Tecnologias e versões conhecidas
 

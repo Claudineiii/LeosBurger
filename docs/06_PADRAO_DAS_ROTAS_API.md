@@ -102,6 +102,7 @@ Até aqui, `/categorias` declara apenas schema de resposta; não há exemplo imp
 - Prefira `select` explícito dos campos necessários, como faz `/categorias`, em vez de retornar o registro inteiro.
 - Para uma resposta pública, defina um schema Zod compatível em `schema.response` e mantenha o `select` alinhado a esse contrato. O schema da resposta e o `select` formam uma proteção em duas partes contra exposição acidental de campos internos.
 - Para uma entidade inexistente, responda `404` quando isso fizer parte do contrato da operação. Não transforme toda falha do Prisma em `404`.
+- Em `GET /itens/:id`, a consulta combina o identificador com `ativo: true`; assim, itens inexistentes e inativos recebem o mesmo `404` genérico e não revelam a existência de registros desativados.
 - Trate erros conhecidos de banco apenas quando a rota puder mapeá-los corretamente (por exemplo, conflito de unicidade para `409`); erros não previstos devem continuar sendo falhas, não respostas de sucesso.
 - Nunca inclua hashes, credenciais, detalhes internos ou mensagens de banco desnecessárias na resposta pública.
 

@@ -34,14 +34,16 @@ Não usar `/reference` como prova de que todas as rotas estão documentadas: cad
 | ------ | -------------- | --------------------------------------------- | ------ |
 | GET    | `/categorias`  | Listar categorias ativas em ordem de exibição. | Implementada; ver `src/routes/categorias.ts` e `tests/api/categorias.test.ts`. |
 | GET    | `/itens`       | Listar itens ativos; filtro opcional `categoriaId`. | Implementada; ver `src/routes/itens.ts` e `tests/api/itens.test.ts`. |
+| GET    | `/itens/:id`   | Consultar os dados públicos de um item ativo. | Implementada; ver `src/routes/itens.ts` e `tests/api/itens.test.ts`. |
 
 `GET /itens` retorna `id`, `categoriaId`, `nome`, `descricao`, `preco`, `imagemUrl` e `ordem`. O campo JSON `adicionais` não é exposto porque o modelo não define um contrato compreensível para a API pública. A resposta ordena por `ordem`, `nome` e `id`; `categoriaId` inválido é rejeitado com `400`.
+
+`GET /itens/:id` retorna os mesmos campos públicos de um item ativo. O parâmetro `id` deve ser UUID; identificador malformado retorna `400`, enquanto item inexistente ou inativo retorna o mesmo `404` genérico. O preço Decimal é convertido para número e `adicionais` permanece fora da resposta.
 
 ## 4. Etapa B — Catálogo público
 
 Próximos endpoints públicos a planejar:
 
-- consultar detalhes de um item;
 - consultar combos ativos;
 - consultar detalhes de um combo.
 
