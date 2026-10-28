@@ -145,14 +145,41 @@ describe("GET /combos", () => {
           `Componente indisponível ${randomUUID()}`,
         );
         const comboSemComposicao = await criarCombo(`Sem composição ${randomUUID()}`);
+        const comboSomenteComRemovidos = await criarCombo(
+          `Somente removidos ${randomUUID()}`,
+        );
 
         await adicionarItem(comboElegivel.id, itemZ.id, 3);
         await adicionarItem(comboElegivel.id, itemA.id, 2);
+        await adicionarItem(comboElegivel.id, itemInativo.id, 4);
         await adicionarItem(comboInativo.id, itemA.id);
         await adicionarItem(comboComComponenteInativo.id, itemA.id);
         await adicionarItem(comboComComponenteInativo.id, itemInativo.id);
+        await adicionarItem(comboSomenteComRemovidos.id, itemA.id);
+        await app.prisma.itemCombo.update({
+          where: {
+            comboId_itemId: {
+              comboId: comboElegivel.id,
+              itemId: itemInativo.id,
+            },
+          },
+          data: { removidoEm: new Date() },
+        });
+        await app.prisma.itemCombo.update({
+          where: {
+            comboId_itemId: {
+              comboId: comboSomenteComRemovidos.id,
+              itemId: itemA.id,
+            },
+          },
+          data: { removidoEm: new Date() },
+        });
 
         const resposta = await app.inject({ method: "GET", url: "/combos" });
+        const detalheSomenteRemovidos = await app.inject({
+          method: "GET",
+          url: `/combos/${comboSomenteComRemovidos.id}`,
+        });
         const corpo = resposta.json();
         const comboRetornado = corpo.find(
           (combo: { id: string }) => combo.id === comboElegivel.id,
@@ -179,6 +206,10 @@ describe("GET /combos", () => {
         expect(corpo.map((combo: { id: string }) => combo.id)).not.toContain(
           comboSemComposicao.id,
         );
+        expect(corpo.map((combo: { id: string }) => combo.id)).not.toContain(
+          comboSomenteComRemovidos.id,
+        );
+        expect(detalheSomenteRemovidos.statusCode).toBe(404);
         expect(resposta.body).not.toContain('"ativo"');
         expect(resposta.body).not.toContain("criadoEm");
         expect(resposta.body).not.toContain("atualizadoEm");
@@ -252,6 +283,11 @@ describe("GET /combos", () => {
           const categoria = await criarCategoria();
           const itemZ = await criarItem(categoria.id, `Componente Z ${randomUUID()}`);
           const itemA = await criarItem(categoria.id, `Componente A ${randomUUID()}`);
+          const itemRemovido = await criarItem(
+            categoria.id,
+            `Componente removido ${randomUUID()}`,
+            false,
+          );
           const combo = await criarCombo(`Detalhe ${randomUUID()}`, {
             descricao: "Descrição do combo",
             imagemUrl: "https://example.com/detalhe-combo.png",
@@ -261,6 +297,13 @@ describe("GET /combos", () => {
 
           await adicionarItem(combo.id, itemZ.id, 3);
           await adicionarItem(combo.id, itemA.id, 2);
+          await adicionarItem(combo.id, itemRemovido.id, 4);
+          await app.prisma.itemCombo.update({
+            where: {
+              comboId_itemId: { comboId: combo.id, itemId: itemRemovido.id },
+            },
+            data: { removidoEm: new Date() },
+          });
 
           const resposta = await app.inject({
             method: "GET",

@@ -15,7 +15,7 @@ Esta pasta contém o mapa geral e um arquivo Markdown por sprint. Ela foi prepar
 - Sprint 6: detalhes de um combo.
 - Sprint 7: autenticação JWT e autorização.
 - Sprint 8: administração de categorias e itens — concluída; ver `SPRINT-08.md`.
-- Sprint 9: administração de combos.
+- Sprint 9: administração de combos — concluída com remoção lógica de associações, reativação e ativação/desativação; ver `SPRINT-09.md`.
 - Sprint 10: perfil e endereços.
 - Sprint 11: validação/prévia do checkout.
 - Sprint 12: criação transacional do pedido.
@@ -45,7 +45,7 @@ Esta pasta contém o mapa geral e um arquivo Markdown por sprint. Ela foi prepar
 - Retirada: `PENDENTE → CONFIRMADO → PREPARANDO → PRONTO → CONCLUIDO`.
 - De qualquer estado anterior a `CONCLUIDO`, é permitida transição para `CANCELADO`.
 - A permissão de cada papel para executar cada transição deve ser conferida na documentação de negócio e definida antes de implementar a alteração de status. Não inventar a matriz de permissões.
-- Combo público fica oculto se estiver inativo ou se qualquer componente estiver inativo.
+- Combo público fica oculto se estiver inativo, sem componentes vigentes ou se qualquer componente vigente estiver inativo. Associações removidas logicamente não participam da composição vigente nem da regra de disponibilidade.
 - Adicionais ficam no JSON existente; não criar tabela.
 - Geocodificação por endereço/CEP e localização fixa do estabelecimento. Distância estimada por coordenadas, não por trajeto viário.
 - Taxas: até 2 km R$ 7,99; acima de 2 até 5 km R$ 9,99; acima de 5 até 8 km R$ 12,99; acima de 8 até 10 km R$ 15,99; acima de 10 km fora da área.

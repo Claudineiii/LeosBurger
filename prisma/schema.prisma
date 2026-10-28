@@ -133,10 +133,11 @@ model Combo {
 }
 
 model ItemCombo {
-  id         String @id @default(uuid())
-  comboId    String @map("combo_id")
-  itemId     String @map("item_id")
-  quantidade Int    @default(1)
+  id         String    @id @default(uuid())
+  comboId    String    @map("combo_id")
+  itemId     String    @map("item_id")
+  quantidade Int       @default(1)
+  removidoEm DateTime? @map("removido_em")
 
   combo Combo @relation(fields: [comboId], references: [id], onDelete: Cascade)
   item  Item  @relation(fields: [itemId], references: [id], onDelete: Restrict)

@@ -54,11 +54,9 @@ const erroInternoResponseSchema = z.object({
 const comboDisponivelWhere = {
   ativo: true,
   itensCombo: {
-    some: {},
+    some: { removidoEm: null },
     every: {
-      item: {
-        ativo: true,
-      },
+      OR: [{ removidoEm: { not: null } }, { item: { ativo: true } }],
     },
   },
 } satisfies Prisma.ComboWhereInput;
@@ -71,6 +69,7 @@ const comboPublicoSelect = {
   imagemUrl: true,
   ordem: true,
   itensCombo: {
+    where: { removidoEm: null },
     orderBy: [{ item: { nome: "asc" } }, { itemId: "asc" }],
     select: {
       quantidade: true,

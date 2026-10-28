@@ -20,6 +20,18 @@ Os testes de integração e migrations de teste usam exclusivamente o banco Post
 
 Para execução contínua, use `npm run test:watch`.
 
+## Combos — administração e catálogo público
+
+`tests/api/combos-admin.test.ts` cobre autorização ADMIN, proteção de origem nas escritas, CRUD, validação estrita, transações, remoção lógica e reativação de associações, ativação/desativação, snapshots históricos já existentes e contrato OpenAPI. `tests/api/combos.test.ts` cobre a elegibilidade pública e confirma que associações removidas não aparecem nem tornam o combo indisponível.
+
+Execute os testes focados com:
+
+```sh
+npm test -- --run tests/api/combos-admin.test.ts tests/api/combos.test.ts
+```
+
+O checkout ainda não grava pedidos nem gera `composicaoHistorica`; portanto, os testes verificam somente a preservação de snapshots previamente gravados. A criação e a completude do snapshot devem receber testes de integração quando o checkout existir.
+
 O carregador define `DATABASE_URL` a partir de `TEST_DATABASE_URL` e bloqueia qualquer endereço que não seja loopback ou cujo banco não seja exatamente `leosburger_test`. A configuração é aplicada também pelo `vitest.config.ts`, então invocações diretas do Vitest sem o carregador não podem recorrer ao `.env` de desenvolvimento.
 
 ## CI

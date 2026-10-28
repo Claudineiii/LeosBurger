@@ -17,6 +17,8 @@ O modelo foi reduzido deliberadamente para **oito tabelas**. Não criar novas ta
 | `pedidos`      | Pedido, cliente/visitante, modalidade, pagamento simulado, totais, endereço e status histórico. |
 | `itens_pedido` | Linhas históricas de item individual ou combo, com valores e dados históricos.                  |
 
+`ItemCombo` possui `removidoEm` opcional (`removido_em` no banco). `null` identifica uma associação vigente; um timestamp a mantém armazenada, mas fora da composição atual. A chave única `(comboId, itemId)` permanece, portanto a readição reativa o mesmo registro em vez de criar duplicata. Essa alteração adiciona uma coluna à tabela existente e mantém as oito tabelas.
+
 ## 3. Enums aprovados
 
 Os quatro enums registrados no histórico:
@@ -35,6 +37,7 @@ Os valores exatos devem ser lidos em `prisma/schema.prisma`; não inferir grafia
 - Endereço de perfil é o endereço atual; pedido guarda cópia histórica necessária para a compra.
 - Preços históricos não devem depender do preço atual de `itens` ou `combos`.
 - Composição histórica de combo deve sobreviver a alterações futuras do combo.
+- A composição vigente é composta apenas por associações `ItemCombo` com `removidoEm = null`; associações removidas não são apagadas fisicamente.
 - `itens_pedido` deve apontar para item individual ou combo, nunca ambos simultaneamente.
 - Histórico de status fica em JSONB no próprio pedido.
 - Cupons não têm tabela aprovada.

@@ -2,7 +2,7 @@
 
 ## Resumo executivo
 
-O LEOSBurger é um cardápio digital com pedidos online. A API possui rotas de saúde, catálogo público de categorias, itens e combos, cadastro/login/logout, identificação do usuário autenticado e administração de categorias e itens protegida por autorização reutilizável. A Sprint 8 não altera combos; perfil, endereços e pedidos continuam planejados para as próximas sprints.
+O LEOSBurger é um cardápio digital com pedidos online. A API possui rotas de saúde, catálogo público de categorias, itens e combos, cadastro/login/logout, identificação do usuário autenticado e administração protegida de categorias, itens e combos. A administração de combos da Sprint 9 lista, consulta, cria e atualiza dados/composição, permite remover associações logicamente e ativar/desativar combos. Perfil, endereços e pedidos continuam planejados.
 
 ## Tecnologias e versões conhecidas
 
@@ -44,7 +44,8 @@ C:/LeosBurger/
 │   │   ├── itens.ts
 │   │   ├── combos.ts
 │   │   ├── auth.ts
-│   │   └── catalogo-admin.ts
+│   │   ├── catalogo-admin.ts
+│   │   └── combos-admin.ts
 │   └── types/
 │       └── fastify.d.ts
 ├── tests/
@@ -54,6 +55,7 @@ C:/LeosBurger/
 │   │   ├── combos.test.ts
 │   │   ├── auth.test.ts
 │   │   ├── catalogo-admin.test.ts
+│   │   ├── combos-admin.test.ts
 │   │   ├── health.test.ts
 │   │   └── prisma.test.ts
 │   └── banco/
@@ -63,9 +65,15 @@ C:/LeosBurger/
 └── vitest.config.ts
 ```
 
-`GET /combos` retorna somente combos ativos com composição não vazia e todos os componentes ativos. A resposta inclui os campos públicos do combo e cada item componente com `id`, `nome` e `quantidade`; preços Decimal são serializados como número.
+`GET /combos` retorna somente combos ativos com pelo menos um componente vigente e todos os componentes vigentes ativos. Associações removidas logicamente (`removidoEm` preenchido) não participam da composição nem da regra de disponibilidade. A resposta inclui os campos públicos do combo e cada item componente vigente com `id`, `nome` e `quantidade`; preços Decimal são serializados como número.
 
 `GET /combos/:id` retorna os mesmos campos públicos e a mesma composição ordenada, somente para combos disponíveis. O parâmetro `id` é validado como UUID; um identificador inválido retorna `400`, enquanto combos inexistentes, inativos, sem componentes ou com algum componente inativo retornam o mesmo `404` genérico.
+
+As rotas `/admin/combos` são protegidas pelo hook `app.autorizarAdmin`; as escritas também verificam a origem. A resposta administrativa inclui o estado atual do combo, componentes vigentes com seu estado `ativo` e o indicador derivado `possuiItensInativos`. `?incluirRemovidos=true` inclui associações removidas em `itensRemovidos`; por padrão, essa lista fica vazia. PATCH aceita `removerItemIds` para remoção lógica e `itens` para criar/atualizar ou reativar associações mantendo a unicidade `(comboId,itemId)`. Também aceita `ativo` para disponibilidade do combo. Alterar composição/preço/estado atuais não modifica snapshots já gravados em pedidos; o fluxo de checkout ainda não implementa a gravação desses snapshots.
+
+A composição pública inclui somente associações com `removidoEm = null`. Combos inativos, sem componentes vigentes ou com qualquer componente vigente inativo permanecem ocultos. A administração consulta combos ativos e inativos; ativar um combo que contenha componente inativo é permitido, mas não o torna público até que todos os componentes vigentes estejam ativos.
+
+Na validação da Sprint 9, os testes focados passaram (2 arquivos, 23 testes), a suíte completa passou (11 arquivos, 96 testes) e o build TypeScript passou. A migration aditiva `20261028154500_item_combo_removido_em` foi aplicada ao banco isolado de testes e ao banco de desenvolvimento `leosburger_db`. O Prisma informou que o banco de desenvolvimento está sincronizado com o schema; o Prisma Client 6.19.3 foi regenerado.
 
 ## Autenticação e autorização — Sprint 7
 

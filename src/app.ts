@@ -9,6 +9,7 @@ import errosPlugin from "./plugins/erros.js";
 import autenticacaoPlugin from "./plugins/autenticacao.js";
 import { authRoutes } from "./routes/auth.js";
 import { catalogoAdminRoutes } from "./routes/catalogo-admin.js";
+import { combosAdminRoutes } from "./routes/combos-admin.js";
 
 export function criarAplicacao() {
   const app = Fastify({
@@ -25,6 +26,7 @@ export function criarAplicacao() {
   app.register(combosRoutes);
   app.register(authRoutes);
   app.register(catalogoAdminRoutes);
+  app.register(combosAdminRoutes);
 
   return app;
 }

@@ -42,7 +42,7 @@ Não usar `/reference` como prova de que todas as rotas estão documentadas: cad
 
 `GET /itens/:id` retorna os mesmos campos públicos de um item ativo. O parâmetro `id` deve ser UUID; identificador malformado retorna `400`, enquanto item inexistente ou inativo retorna o mesmo `404` genérico. O preço Decimal é convertido para número e `adicionais` permanece fora da resposta.
 
-`GET /combos` e `GET /combos/:id` usam a mesma regra de disponibilidade: somente combos ativos com pelo menos um componente e com todos os itens componentes ativos. Os endpoints retornam `id`, `nome`, `descricao`, `preco`, `imagemUrl`, `ordem` e `itens` (`id`, `nome`, `quantidade`); preços Decimal são convertidos para número. A composição é ordenada por nome do item e ID. Na rota de detalhe, UUID inválido retorna `400`; combo inexistente ou indisponível retorna `404` genérico sem revelar a existência do registro.
+`GET /combos` e `GET /combos/:id` usam a mesma regra de disponibilidade: somente combos ativos com pelo menos um componente vigente e com todos os componentes vigentes ativos. Associações removidas logicamente (`removidoEm` preenchido) não participam da composição nem tornam o combo indisponível, mesmo que o item associado esteja inativo. Os endpoints retornam `id`, `nome`, `descricao`, `preco`, `imagemUrl`, `ordem` e `itens` (`id`, `nome`, `quantidade`); preços Decimal são convertidos para número. A composição é ordenada por nome do item e ID. Na rota de detalhe, UUID inválido retorna `400`; combo inexistente ou indisponível retorna `404` genérico sem revelar a existência do registro.
 
 ## 3.2 Autenticação implementada
 
@@ -67,8 +67,8 @@ Endpoints de combos implementados:
 Regras:
 
 - o cliente público vê apenas itens/combos disponíveis para venda;
-- `GET /combos` retorna somente combos ativos com pelo menos um componente, desde que todos os itens componentes estejam ativos;
-- combos sem composição ou com qualquer componente inativo ficam ocultos; nenhum componente é substituído automaticamente;
+- `GET /combos` retorna somente combos ativos com pelo menos um componente vigente, desde que todos os componentes vigentes estejam ativos;
+- combos sem componentes vigentes ou com qualquer componente vigente inativo ficam ocultos; associações removidas logicamente não participam dessa regra, e nenhum componente é substituído automaticamente;
 - a composição pública inclui `id`, `nome` e `quantidade` de cada item, sem campos internos da associação;
 - o preço Decimal do combo é convertido para número, e a lista é ordenada por `ordem`, `nome` e `id`;
 - não tratar combo como categoria;
@@ -99,14 +99,24 @@ Os corpos são estritos e rejeitam campos não permitidos. Categoria aceita nome
 
 Os conflitos de unicidade são mapeados a `409` sem expor erros Prisma. Categoria inexistente informada pelo item retorna `400`; recurso administrativo inexistente no GET/PATCH retorna `404`. As respostas de administração incluem `ativo`; somente a resposta administrativa de item inclui `adicionais`. As respostas públicas seguem inalteradas: categorias e itens inativos continuam ocultos, e adicionais não são retornados ao público.
 
-Não há endpoint DELETE: desativação é feita com `PATCH` e `ativo: false`; ativação usa `ativo: true`. Não há CRUD administrativo de combos nesta sprint (Sprint 9). A forma de domínio de `adicionais` ainda não foi aprovada; o backend valida que o valor seja JSON válido, mas não presume campos/preços internos. O checkout futuro deverá validar seleções e recalcular valores.
+Não há endpoint DELETE para categorias e itens: sua desativação é feita com `PATCH` e `ativo: false`; ativação usa `ativo: true`. A administração de combos está descrita na seção da Sprint 9 abaixo. A forma de domínio de `adicionais` ainda não foi aprovada; o backend valida que o valor seja JSON válido, mas não presume campos/preços internos. O checkout futuro deverá validar seleções e recalcular valores.
 
-### Combos planejados para a Sprint 9
+### Administração de combos — Sprint 9
 
-- criar/editar/ativar/desativar combos;
-- manter composição por meio de `itens_combo`.
+Todas as rotas abaixo exigem cookie JWT válido e papel `ADMIN` consultado no banco. `POST` e `PATCH` também verificam a origem com `app.verificarOrigem`.
 
-Operações administrativas futuras continuarão exigindo autorização ADMIN e deverão preferir desativação quando exclusão comprometer integridade ou histórico.
+| Método | Caminho | Comportamento |
+| --- | --- | --- |
+| GET | `/admin/combos` | Lista combos ativos e inativos, com composição vigente; `?incluirRemovidos=true` também retorna associações removidas em `itensRemovidos`. |
+| GET | `/admin/combos/:id` | Consulta combo por UUID, inclusive inativo; aceita `?incluirRemovidos=true`; `400` para ID inválido e `404` para inexistente. |
+| POST | `/admin/combos` | Cria combo ativo com composição inicial; `201`, `400` para dados/referências inválidos e `409` para nome duplicado. |
+| PATCH | `/admin/combos/:id` | Atualiza parcialmente dados e `ativo`; `itens` acrescenta/atualiza/reativa componentes e `removerItemIds` remove associações logicamente; `400`, `404` ou `409`. |
+
+Os corpos são estritos. A criação exige `nome`, preço não negativo representável em centavos e uma lista não vazia de `itens` com `itemId` UUID e quantidade inteira positiva. Campos opcionais são `descricao`, `imagemUrl` HTTP/HTTPS e `ordem`. O PATCH aceita esses campos, `ativo` booleano, `itens` incremental e `removerItemIds` como lista não vazia de IDs. Um mesmo item não pode aparecer em ambas as listas. Itens omitidos permanecem na composição. `itens` cria associação quando necessário, atualiza quantidade ou reativa a associação removida existente; `removerItemIds` só aceita itens atualmente associados. Cada operação de composição e a atualização do combo são atômicas. A resposta da remoção retorna a associação em `itensRemovidos`; para consultas GET, essa lista é incluída somente com `incluirRemovidos=true`.
+
+O preço é persistido conforme informado pelo proprietário; composição não altera o preço. Respostas administrativas expõem somente campos selecionados e informam `ativo` em cada componente e `possuiItensInativos` no combo. Componentes inativos exigem revisão manual, sem substituição automática. Ativar um combo com componentes inativos é permitido, mas o catálogo público continua indisponibilizando-o. Transações Prisma tornam a criação e cada PATCH atômicos; referências inexistentes retornam `400`, conflitos de unicidade `409` genérico, e recursos inexistentes `404` genérico. O catálogo público filtra associações removidas e combos que não tenham componentes vigentes ou cujos componentes vigentes estejam inativos.
+
+**Limitação histórica:** não há fluxo de checkout implementado que gere `ItemPedido.composicaoHistorica`. Testes comprovam que operações administrativas não alteram snapshots já gravados, mas a criação/completude do snapshot deverá ser testada quando o checkout for desenvolvido.
 
 ## 6. Etapa D — Autenticação e perfil
 
