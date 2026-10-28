@@ -8,6 +8,7 @@ import documentacaoPlugin from "./plugins/documentacao.js";
 import errosPlugin from "./plugins/erros.js";
 import autenticacaoPlugin from "./plugins/autenticacao.js";
 import { authRoutes } from "./routes/auth.js";
+import { catalogoAdminRoutes } from "./routes/catalogo-admin.js";
 
 export function criarAplicacao() {
   const app = Fastify({
@@ -23,6 +24,7 @@ export function criarAplicacao() {
   app.register(itensRoutes);
   app.register(combosRoutes);
   app.register(authRoutes);
+  app.register(catalogoAdminRoutes);
 
   return app;
 }

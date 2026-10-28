@@ -4,7 +4,7 @@
 
 Este guia registra o que está comprovado na API atual e estabelece um procedimento para implementar e verificar futuras rotas com Fastify, TypeScript, Zod, Prisma, OpenAPI/Scalar e Vitest.
 
-O guia registra as rotas públicas de catálogo e a base de autenticação já implementadas; não implementa administração, perfil ou pedidos. O código real continua sendo a referência: confira os arquivos antes de reutilizar qualquer exemplo.
+O guia registra as rotas públicas de catálogo, autenticação e administração de categorias/itens implementadas. Perfil, endereços e pedidos continuam fora deste escopo. O código real continua sendo a referência: confira os arquivos antes de reutilizar qualquer exemplo.
 
 ## 2. Pré-requisitos
 
@@ -13,7 +13,7 @@ O guia registra as rotas públicas de catálogo e a base de autenticação já i
 - Para executar a API, configure `JWT_SECRET` (mínimo 32 bytes) e `FRONTEND_ORIGIN` (origem exata, sem caminho); o exemplo local é `http://localhost:5173`. Gere o segredo localmente com `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"` e não o inclua no Git.
 - Para executar os testes, configure `.env.test` a partir de `.env.test.example`, com `TEST_DATABASE_URL` apontando para o banco local `leosburger_test`. Não use a URL do banco de desenvolvimento.
 - PostgreSQL de teste ativo e migrations aplicadas com `npm run db:test:migrate`.
-- Não execute o seed como preparação automática de testes: ele exige credenciais de administrador e altera dados. A suíte atual não cria fixtures de categorias.
+- Não execute o seed como preparação automática de testes: ele exige credenciais de administrador e altera dados. Os testes de catálogo criam e limpam suas próprias fixtures no banco de teste.
 
 ## 3. Mapa dos arquivos envolvidos
 
@@ -27,8 +27,10 @@ O guia registra as rotas públicas de catálogo e a base de autenticação já i
 | `src/types/fastify.d.ts`                      | Declara `prisma` na tipagem de `FastifyInstance`.                                         |
 | `src/routes/health.ts`                        | Define `GET /health`.                                                                     |
 | `src/routes/categorias.ts`                    | Define `GET /categorias`, seu contrato de resposta e consulta Prisma.                     |
+| `src/routes/catalogo-admin.ts`                | Define as rotas ADMIN de categorias e itens, com validação, persistência e contratos OpenAPI. |
 | `src/routes/auth.ts`                           | Define cadastro, login, logout e consulta dos dados públicos do usuário autenticado.      |
 | `tests/api/`                                  | Testes HTTP/API que criam a aplicação e requisitam rotas.                                 |
+| `tests/api/catalogo-admin.test.ts`             | Testes de integração de autenticação/autorização e administração de categorias/itens.       |
 | `tests/banco/`                                | Testes de integridade do banco.                                                           |
 | `scripts/test-database.ts`                    | Valida e injeta a URL exclusiva do banco de teste antes de Vitest ou migrations de teste. |
 | `vitest.config.ts`                            | Carrega o ambiente seguro de teste também quando Vitest é invocado diretamente.           |
@@ -53,6 +55,9 @@ O plugin Prisma é registrado na aplicação toda. Portanto, até testes de rota
 - Registre o grupo em `src/app.ts` com `app.register(nomeRoutes)`. Mantenha `app.ts` como ponto de composição e `server.ts` como ponto de inicialização, não de declaração de endpoints.
 - Declare no arquivo de rota o caminho, método, schema OpenAPI e handler que pertencem àquele grupo.
 - Para rotas privadas, use os hooks fornecidos pelo plugin de autenticação; não replique validação de JWT ou papel nos handlers.
+- Rotas administrativas de leitura usam `preHandler: [app.autorizarAdmin]`; rotas administrativas que escrevem usam `preHandler: [app.verificarOrigem, app.autorizarAdmin]`. A ausência de `Origin` é aceita pelo hook existente; uma origem divergente recebe `403`.
+- As rotas administrativas de catálogo ficam sob `/admin/categorias` e `/admin/itens`, separadas das consultas públicas. Use `PATCH` parcial para editar campos e alterar `ativo`; não crie DELETE físico. O `select` administrativo pode incluir campos de gestão como `ativo` e, para itens, `adicionais`, mas não deve retornar o registro Prisma inteiro.
+- Mapeie `P2002` para conflito `409` genérico; não envie códigos ou mensagens Prisma. Verifique a categoria referenciada pelo item e trate sua ausência como entrada inválida `400`.
 - Use serviço quando houver regra de negócio que mereça separação/reuso; use repository apenas se o acesso a dados justificar a camada. A implementação atual não comprova a necessidade de nenhuma dessas camadas.
 - Escolha e registre os caminhos antes de implementar novas rotas; a rota existente usa `/categorias` (plural em português).
 

@@ -9,7 +9,7 @@
 | 05 | Listagem pública de combos | Concluída; consultar `SPRINT-05.md` |
 | 06 | Detalhes de combo | Concluída; consultar `SPRINT-06.md` |
 | 07 | Autenticação JWT e autorização | Concluída; testes e build aprovados |
-| 08 | Administração de categorias e itens | Após 07 |
+| 08 | Administração de categorias e itens | Concluída; testes de integração e build aprovados |
 | 09 | Administração de combos | Após 08 |
 | 10 | Perfil e endereços | Após 07 |
 | 11 | Validação/prévia do checkout | Após catálogo, autenticação e endereços |

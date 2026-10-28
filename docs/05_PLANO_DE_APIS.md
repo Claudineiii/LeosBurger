@@ -80,15 +80,33 @@ Para as próximas rotas, definir os caminhos exatos antes de implementá-las e m
 
 ## 5. Etapa C — Administração do catálogo
 
-Operações planejadas:
+### Categorias e itens implementados na Sprint 8
 
-- criar/editar/ativar/desativar categorias conforme regras;
-- criar/editar/ativar/desativar itens;
-- definir adicionais permitidos por item;
+Todos os endpoints abaixo exigem autenticação JWT por cookie e autorização `ADMIN` com o papel atual consultado no banco. Operações `POST` e `PATCH` também executam `app.verificarOrigem`; requisições sem `Origin` são aceitas conforme a regra vigente para clientes não navegador.
+
+| Método | Caminho | Acesso | Comportamento e respostas relevantes |
+| --- | --- | --- | --- |
+| GET | `/admin/categorias` | ADMIN | Lista todas as categorias, inclusive inativas; `200`. |
+| GET | `/admin/categorias/:id` | ADMIN | Consulta categoria por UUID; `400` para ID inválido e `404` para inexistente. |
+| POST | `/admin/categorias` | ADMIN | Cria categoria ativa; `201`, `400` por entrada inválida e `409` por nome duplicado. |
+| PATCH | `/admin/categorias/:id` | ADMIN | Atualiza parcialmente `nome`, `descricao`, `ordem` e/ou `ativo`; `400`, `404` ou `409` conforme o caso. |
+| GET | `/admin/itens` | ADMIN | Lista todos os itens, inclusive inativos; `200`. |
+| GET | `/admin/itens/:id` | ADMIN | Consulta item por UUID; `400` para ID inválido e `404` para inexistente. |
+| POST | `/admin/itens` | ADMIN | Cria item ativo; `201`, `400` para entrada/categoria inválida e `409` para nome duplicado na categoria. |
+| PATCH | `/admin/itens/:id` | ADMIN | Atualiza parcialmente os campos permitidos e/ou `ativo`; `400`, `404` ou `409` conforme o caso. |
+
+Os corpos são estritos e rejeitam campos não permitidos. Categoria aceita nome, descrição e ordem na criação; `ativo` é alterado por PATCH. Item aceita categoria, nome, descrição, preço, imagem, ordem e JSON de adicionais na criação; PATCH também permite `ativo`. Campos omitidos mantêm o valor atual, enquanto `descricao`, `imagemUrl` e `adicionais` podem ser explicitamente limpos com `null`. O preço é um número finito, não negativo, representável em centavos e dentro da precisão `Decimal(10,2)` do banco. A ordem é inteiro no intervalo de `Int` do PostgreSQL. Imagens aceitam URL HTTP/HTTPS.
+
+Os conflitos de unicidade são mapeados a `409` sem expor erros Prisma. Categoria inexistente informada pelo item retorna `400`; recurso administrativo inexistente no GET/PATCH retorna `404`. As respostas de administração incluem `ativo`; somente a resposta administrativa de item inclui `adicionais`. As respostas públicas seguem inalteradas: categorias e itens inativos continuam ocultos, e adicionais não são retornados ao público.
+
+Não há endpoint DELETE: desativação é feita com `PATCH` e `ativo: false`; ativação usa `ativo: true`. Não há CRUD administrativo de combos nesta sprint (Sprint 9). A forma de domínio de `adicionais` ainda não foi aprovada; o backend valida que o valor seja JSON válido, mas não presume campos/preços internos. O checkout futuro deverá validar seleções e recalcular valores.
+
+### Combos planejados para a Sprint 9
+
 - criar/editar/ativar/desativar combos;
-- manter composição de combo por meio de `itens_combo`.
+- manter composição por meio de `itens_combo`.
 
-Todas as operações administrativas exigem autenticação e autorização de administrador. Regras de exclusão devem considerar referências e histórico de pedidos; preferir desativação quando apagar comprometer integridade ou histórico.
+Operações administrativas futuras continuarão exigindo autorização ADMIN e deverão preferir desativação quando exclusão comprometer integridade ou histórico.
 
 ## 6. Etapa D — Autenticação e perfil
 

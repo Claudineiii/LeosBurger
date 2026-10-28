@@ -2,7 +2,7 @@
 
 ## Resumo executivo
 
-O LEOSBurger é um cardápio digital com pedidos online. A infraestrutura básica de banco e backend foi preparada. A API possui rotas de saúde, catálogo público de categorias, itens e combos, cadastro/login/logout, identificação do usuário autenticado, autorização reutilizável e documentação OpenAPI exibida pelo Scalar. Administração do catálogo, perfil, endereços e pedidos continuam planejados para as próximas sprints.
+O LEOSBurger é um cardápio digital com pedidos online. A API possui rotas de saúde, catálogo público de categorias, itens e combos, cadastro/login/logout, identificação do usuário autenticado e administração de categorias e itens protegida por autorização reutilizável. A Sprint 8 não altera combos; perfil, endereços e pedidos continuam planejados para as próximas sprints.
 
 ## Tecnologias e versões conhecidas
 
@@ -21,7 +21,7 @@ O LEOSBurger é um cardápio digital com pedidos online. A infraestrutura básic
 | Autenticação | JWT em cookie HttpOnly        | Implementada na Sprint 7; cookies `SameSite=Strict`, `Secure` em produção, 30 dias para cliente e 12 horas para ADMIN. |
 | Frontend     | HTML + TypeScript + Tailwind | Planejado; não usar React.                                                                                            |
 | UI opcional  | daisyUI / Flowbite           | Foram considerados para acelerar componentes; confirmar instalação antes de usar.                                     |
-| Git          | Git/GitHub                   | A implementação da Sprint 7 partiu do commit `03f2603`; consulte o histórico Git para o estado atual.              |
+| Git          | Git/GitHub                   | Consulte `git status` e `git log` para o estado atual do branch e das alterações locais.                           |
 
 ## Estrutura atual conhecida
 
@@ -43,7 +43,8 @@ C:/LeosBurger/
 │   │   ├── categorias.ts
 │   │   ├── itens.ts
 │   │   ├── combos.ts
-│   │   └── auth.ts
+│   │   ├── auth.ts
+│   │   └── catalogo-admin.ts
 │   └── types/
 │       └── fastify.d.ts
 ├── tests/
@@ -52,6 +53,7 @@ C:/LeosBurger/
 │   │   ├── itens.test.ts
 │   │   ├── combos.test.ts
 │   │   ├── auth.test.ts
+│   │   ├── catalogo-admin.test.ts
 │   │   ├── health.test.ts
 │   │   └── prisma.test.ts
 │   └── banco/
@@ -85,3 +87,24 @@ CORS com credenciais permite somente a origem exata de `FRONTEND_ORIGIN`; origen
 Os schemas Zod validam e documentam entradas e respostas. Cadastro e login rejeitam campos extras; as respostas selecionam explicitamente os campos públicos e não incluem `senhaHash`. As falhas de validação retornam `400`; erros de credenciais usam resposta genérica `401`; duplicidade no cadastro usa `409`; bloqueio por origem/papel usa `403`. Os endpoints e a segurança por cookie também estão descritos no OpenAPI/Scalar.
 
 Os testes de integração de autenticação exercitam o banco de testes isolado e cobrem cadastro, normalização, hash, respostas sem hash, rejeição de `ADMIN` no cadastro público, duplicidade, login, conta inativa, cookie, tokens ausente/inválido/expirado, logout, acesso privado e autorização ADMIN. Também verificam recusa de origem divergente, preservação das rotas públicas do catálogo e contrato OpenAPI. O registro completo dos critérios e da validação está em [SPRINT-07.md](./sprints/SPRINT-07.md).
+
+## Administração do catálogo — Sprint 8
+
+As categorias e os itens possuem endpoints administrativos em `src/routes/catalogo-admin.ts`, registrados em `src/app.ts`. Todas as rotas exigem cookie válido e papel `ADMIN` consultado no banco; operações de escrita também verificam a origem. Listagens administrativas incluem registros inativos. Criação e edição usam Zod com rejeição de campos desconhecidos; nomes respeitam a unicidade definida no banco, itens exigem categoria existente e preço não negativo com no máximo duas casas decimais. Os recursos são desativados por `ativo`; não há exclusão física.
+
+| Método | Caminho | Acesso | Resultado |
+| --- | --- | --- | --- |
+| GET | `/admin/categorias` | ADMIN | Lista categorias ativas e inativas. |
+| GET | `/admin/categorias/:id` | ADMIN | Detalha categoria, inclusive inativa. |
+| POST | `/admin/categorias` | ADMIN | Cria categoria ativa; `201`; nome duplicado `409`. |
+| PATCH | `/admin/categorias/:id` | ADMIN | Edita nome, descrição, ordem e/ou `ativo`; `404` se ausente e `409` para duplicidade. |
+| GET | `/admin/itens` | ADMIN | Lista itens ativos e inativos. |
+| GET | `/admin/itens/:id` | ADMIN | Detalha item, inclusive inativo. |
+| POST | `/admin/itens` | ADMIN | Cria item ativo; categoria inválida `400`; duplicidade na categoria `409`. |
+| PATCH | `/admin/itens/:id` | ADMIN | Edita campos permitidos, categoria e/ou `ativo`; `404` se ausente e `409` para duplicidade. |
+
+As respostas administrativas selecionam explicitamente os campos de catálogo; o preço Decimal é serializado como número. `adicionais` é persistido como JSON válido na coluna já existente e só é devolvido na API administrativa. Como o modelo não aprova uma estrutura de domínio para esse JSON, a API não inventa um formato de adicionais nem considera valores enviados ali como fonte confiável de preços no checkout.
+
+Os testes de integração `tests/api/catalogo-admin.test.ts` exercitam autenticação ausente, papel `CLIENTE`, papel `ADMIN`, origem divergente, CRUD parcial, unicidade, categoria inexistente, preço/entrada inválidos, ativação, listagens públicas/admin, JSON de adicionais e contrato OpenAPI. Os testes usam o banco isolado definido pelo wrapper do projeto e removem apenas fixtures criadas por cada teste. Nenhuma tabela, migration ou dependência foi adicionada.
+
+Validação desta entrega: o teste focado de catálogo passou (1 arquivo, 11 testes), a suíte completa passou (10 arquivos, 81 testes) e `npm run build` passou. A Sprint 8 está concluída; as rotas administrativas de combos permanecem planejadas para a Sprint 9.

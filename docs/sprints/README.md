@@ -14,7 +14,7 @@ Esta pasta contém o mapa geral e um arquivo Markdown por sprint. Ela foi prepar
 - Sprint 5: listagem pública de combos.
 - Sprint 6: detalhes de um combo.
 - Sprint 7: autenticação JWT e autorização.
-- Sprint 8: administração de categorias e itens.
+- Sprint 8: administração de categorias e itens — concluída; ver `SPRINT-08.md`.
 - Sprint 9: administração de combos.
 - Sprint 10: perfil e endereços.
 - Sprint 11: validação/prévia do checkout.

@@ -29,6 +29,10 @@ Regras:
 - Produtos como Coca-Cola lata podem não aceitar adicionais.
 - Não há módulo de estoque no MVP.
 - Itens e combos podem ser ativados/desativados no painel administrativo.
+- Nesta etapa, somente usuários ADMIN ativos podem criar, editar, listar ou alterar o estado de categorias e itens. A administração não remove registros fisicamente; `ativo` controla sua disponibilidade.
+- O nome da categoria é único; o nome do item é único dentro da mesma categoria, conforme as constraints existentes no banco.
+- Item administrativo deve referenciar categoria existente, e seu preço não pode ser negativo. O backend valida esses dados sem confiar nos valores do cliente.
+- `adicionais` permanece no JSON já existente no modelo. Até haver contrato de domínio aprovado, a administração aceita JSON válido sem impor uma estrutura específica; checkout futuro deve validar adicionais e recalcular seus preços no backend.
 - Combos são cadastrados pelo proprietário; não dependem de data de validade semanal/sazonal.
 - Não excluir ou alterar dados históricos de pedidos ao editar o catálogo atual.
 - Bebidas esperadas inicialmente incluem Coca-Cola lata e Guaraná, mas isso é conteúdo inicial de catálogo, não regra rígida de código.
