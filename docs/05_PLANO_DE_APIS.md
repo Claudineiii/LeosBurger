@@ -4,7 +4,7 @@
 
 Este documento é um **plano de endpoints**, não afirma que as APIs listadas já foram implementadas. O agente deve conferir as rotas reais em `src/routes/` antes de concluir qualquer status.
 
-Base atual conhecida: Fastify 5.x, TypeScript, Prisma 6.19.3, Zod, Swagger/OpenAPI e Scalar. Estão implementadas `GET /health`, `GET /categorias`, `GET /itens` e `GET /combos`; confira o estado atual em `src/routes/`.
+Base atual conhecida: Fastify 5.x, TypeScript, Prisma 6.19.3, Zod, Swagger/OpenAPI e Scalar. Estão implementadas `GET /health`, rotas públicas de categorias/itens/combos e rotas de autenticação; confira o estado atual em `src/routes/`.
 
 ## 2. Princípios para todas as rotas
 
@@ -44,6 +44,19 @@ Não usar `/reference` como prova de que todas as rotas estão documentadas: cad
 
 `GET /combos` e `GET /combos/:id` usam a mesma regra de disponibilidade: somente combos ativos com pelo menos um componente e com todos os itens componentes ativos. Os endpoints retornam `id`, `nome`, `descricao`, `preco`, `imagemUrl`, `ordem` e `itens` (`id`, `nome`, `quantidade`); preços Decimal são convertidos para número. A composição é ordenada por nome do item e ID. Na rota de detalhe, UUID inválido retorna `400`; combo inexistente ou indisponível retorna `404` genérico sem revelar a existência do registro.
 
+## 3.2 Autenticação implementada
+
+| Método | Caminho          | Acesso | Objetivo | Estado |
+| ------ | ---------------- | ------ | -------- | ------ |
+| POST   | `/auth/cadastro` | Público | Cadastrar cliente com e-mail normalizado e senha em hash. | Implementada; resposta `201`, duplicidade genérica `409`. |
+| POST   | `/auth/login`    | Público | Validar credenciais e emitir cookie JWT. | Implementada; credenciais inválidas ou usuário inativo recebem resposta genérica `401`. |
+| POST   | `/auth/logout`   | Público | Apagar o cookie de autenticação do navegador. | Implementada; `204`, sem revogação de JWT copiado. |
+| GET    | `/auth/me`       | Autenticado | Consultar dados públicos do usuário autenticado. | Implementada; `401` para cookie ausente, inválido, expirado ou usuário inativo. |
+
+O cookie `leosburger_session` é `HttpOnly`, `SameSite=Strict`, `Path=/` e `Secure` em produção. JWT HS256 expira em 30 dias para `CLIENTE` e 12 horas para `ADMIN`. O token contém somente `sub`; o servidor consulta o usuário ativo e seu tipo atual no banco em cada acesso protegido. Os hooks `app.autenticar`, `app.autorizarAdmin` e `app.verificarOrigem` são reutilizáveis nas rotas futuras. CORS com credenciais tem allowlist exata `FRONTEND_ORIGIN`; operações de escrita recusam `Origin` divergente.
+
+Logout encerra o uso da sessão pelo navegador ao remover o cookie com os mesmos atributos de criação. Não há revogação no servidor: um JWT copiado continua válido até `exp`, a menos que o usuário seja desativado. Não há tabela de sessões, refresh token nem migration de autenticação.
+
 ## 4. Etapa B — Catálogo público
 
 Endpoints de combos implementados:
@@ -79,24 +92,19 @@ Todas as operações administrativas exigem autenticação e autorização de ad
 
 ## 6. Etapa D — Autenticação e perfil
 
-Operações candidatas:
+Operações já implementadas:
 
-- cadastro;
-- login;
-- logout/renovação, conforme estratégia de sessão/token definida;
+- `POST /auth/cadastro`;
+- `POST /auth/login`;
+- `POST /auth/logout`;
+- `GET /auth/me`.
+
+Operações ainda planejadas:
+
 - consulta/edição de perfil;
 - listar/criar/editar endereço do cliente.
 
-Antes de implementar, definir:
-
-- estratégia de autenticação e armazenamento de credencial;
-- expiração e revogação de token/sessão;
-- hash de senha;
-- proteção de rotas;
-- respostas seguras;
-- normalização de e-mail e CEP.
-
-Não expor hash de senha. Confirmar as decisões de JWT/sessão no código/configuração existente antes de adicionar dependências.
+Configuração requerida: `JWT_SECRET` com pelo menos 32 bytes; `FRONTEND_ORIGIN` deve ser a origem exata do frontend e HTTPS em produção. Não exponha hash de senha, cookie ou segredo em logs/respostas.
 
 ## 7. Etapa E — Checkout e pedidos
 

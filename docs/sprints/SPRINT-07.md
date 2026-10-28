@@ -1,6 +1,6 @@
 # Sprint 07 — Autenticação JWT e autorização
 
-**Estado:** Executar depois do catálogo público; conferir dependências e código antes de começar.
+**Estado:** Concluída e validada após as Sprints 5 e 6.
 
 ## Objetivo
 Permitir cadastro/login e proteger recursos privados com JWT em cookie `HttpOnly`, sem tabela de sessões ou revogação.
@@ -15,11 +15,11 @@ Permitir cadastro/login e proteger recursos privados com JWT em cookie `HttpOnly
 2. Confirmar campos reais de usuário, papéis existentes e como a senha está armazenada. Se não houver hash seguro, apresentar a opção de biblioteca antes de instalar dependência.
 3. Definir os contratos de cadastro, login e logout com schemas Zod e respostas que nunca incluam hash de senha.
 4. Implementar validação de credenciais e comparação com hash usando solução segura já instalada ou previamente aprovada.
-5. Emitir JWT assinado e validado pelo backend. Configurar cookie `HttpOnly`; validade de 30 dias para cliente e 12 horas para administrador. Em produção, usar HTTPS e `Secure`; configurar `SameSite`, domínio e path conforme o ambiente.
+5. Emitir JWT assinado e validado pelo backend. Configurar cookie `HttpOnly`, `SameSite=Strict`, `Path=/` sem atributo `Domain`; validade de 30 dias para cliente e 12 horas para administrador. Em produção, usar HTTPS e `Secure`.
 6. Implementar logout removendo o cookie. Não criar mecanismo de revogação, tabela ou coluna de sessão. A expiração do token continua sendo a proteção temporal no servidor.
 7. Implementar identificação do usuário e verificação de papel ADMIN sem confiar em dados não verificados do token ou no corpo da requisição.
 8. Testar cadastro válido/inválido, login válido/inválido, cookie, logout, token ausente/inválido/expirado e bloqueio de usuário comum em rota administrativa.
-9. Verificar CORS e credenciais entre frontend e backend. Avaliar a proteção contra CSRF de acordo com a configuração de cookies e origens.
+9. Restringir CORS com credenciais a `FRONTEND_ORIGIN` e validar `Origin` nas operações de escrita. O cookie `SameSite=Strict` e a checagem de origem formam a proteção CSRF desta API.
 10. Executar suíte completa e build. Atualizar docs de autenticação e variáveis de ambiente sem incluir segredos.
 
 ## Arquivos envolvidos
@@ -39,7 +39,7 @@ git diff --check
 Confira `package.json` antes de usar um comando específico de teste. Não contorne a proteção do banco de testes.
 
 ## Critérios de conclusão
-- [ ] JWT é validado; cookies têm prazos corretos; logout remove cookie; não há tabela/coluna de sessão; respostas não expõem hash; rotas ADMIN são protegidas.
+- [x] JWT é validado; cookies têm prazos corretos; logout remove cookie; não há tabela/coluna de sessão; respostas não expõem hash; rotas ADMIN são protegidas.
 
 ## O que esta sprint ensina
 Hash de senha, JWT, cookies, autenticação versus autorização, expiração, CORS e CSRF.
@@ -48,8 +48,8 @@ Hash de senha, JWT, cookies, autenticação versus autorização, expiração, C
 Se o usuário decidir delegar, o agente deve inspecionar o estado real, implementar o escopo completo, executar os testes e o build, revisar o diff e atualizar a documentação. Não deve ampliar o escopo nem alterar decisões aprovadas.
 
 ## Registro ao concluir
-- Resultado dos testes:
-- Resultado do build:
-- Arquivos alterados:
-- Documentação atualizada:
-- Pendências ou riscos:
+- Resultado dos testes: `npm test -- --run tests/api/auth.test.ts` passou (1 arquivo, 23 testes); `npm test -- --run` passou (9 arquivos, 70 testes). A cobertura inclui atualização de permissões a partir do tipo atual no banco e falha de inicialização para configurações JWT/origem inválidas.
+- Resultado do build: `npm run build` passou.
+- Arquivos alterados: `.env.example`, `package.json`, `package-lock.json`, `src/app.ts`, `src/plugins/autenticacao.ts`, `src/plugins/documentacao.ts`, `src/routes/auth.ts`, `src/types/fastify.d.ts`, `tests/api/auth.test.ts` e `vitest.config.ts`; documentação atualizada neste registro, no mapa de sprints, no plano de APIs, no estado atual, nas regras de negócio, na arquitetura e no guia de rotas.
+- Documentação atualizada: endpoints de autenticação, prazos e atributos do cookie, allowlist CORS/origem, hooks reutilizáveis, configuração de variáveis de ambiente e semântica de logout sem revogação.
+- Pendências ou riscos: JWT copiado não pode ser revogado nesta arquitetura e permanece válido até expirar; desativar o usuário bloqueia novos acessos imediatamente. Não há rate limiting de login. Configurar `JWT_SECRET` e `FRONTEND_ORIGIN` no ambiente; em produção, a origem é obrigatória e deve usar HTTPS. O frontend ainda não está implementado. Nenhuma tabela ou migration foi criada.

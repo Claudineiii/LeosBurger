@@ -4,12 +4,13 @@
 
 Este guia registra o que está comprovado na API atual e estabelece um procedimento para implementar e verificar futuras rotas com Fastify, TypeScript, Zod, Prisma, OpenAPI/Scalar e Vitest.
 
-O guia não implementa endpoints de itens, combos, autenticação ou pedidos, nem define regras de negócio ainda não aprovadas. O código real continua sendo a referência: confira os arquivos antes de reutilizar qualquer exemplo.
+O guia registra as rotas públicas de catálogo e a base de autenticação já implementadas; não implementa administração, perfil ou pedidos. O código real continua sendo a referência: confira os arquivos antes de reutilizar qualquer exemplo.
 
 ## 2. Pré-requisitos
 
 - Node.js e dependências instaladas pelo projeto.
 - TypeScript em ESM/NodeNext; os imports locais usam extensão `.js`.
+- Para executar a API, configure `JWT_SECRET` (mínimo 32 bytes) e `FRONTEND_ORIGIN` (origem exata, sem caminho); o exemplo local é `http://localhost:5173`. Gere o segredo localmente com `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"` e não o inclua no Git.
 - Para executar os testes, configure `.env.test` a partir de `.env.test.example`, com `TEST_DATABASE_URL` apontando para o banco local `leosburger_test`. Não use a URL do banco de desenvolvimento.
 - PostgreSQL de teste ativo e migrations aplicadas com `npm run db:test:migrate`.
 - Não execute o seed como preparação automática de testes: ele exige credenciais de administrador e altera dados. A suíte atual não cria fixtures de categorias.
@@ -21,10 +22,12 @@ O guia não implementa endpoints de itens, combos, autenticação ou pedidos, ne
 | `src/app.ts`                                  | Cria a instância Fastify e registra plugins e grupos de rotas.                            |
 | `src/server.ts`                               | Cria a aplicação, inicia o listener e registra/fecha a aplicação ao falhar o início.      |
 | `src/plugins/prisma.ts`                       | Cria e conecta o Prisma Client, decora `app.prisma` e desconecta no fechamento.           |
+| `src/plugins/autenticacao.ts`                  | Registra JWT, cookies e CORS restrito; fornece autenticação, autorização ADMIN e validação de origem. |
 | `src/plugins/documentacao.ts`                 | Configura os compiladores Zod, Swagger/OpenAPI e a interface Scalar em `/reference`.      |
 | `src/types/fastify.d.ts`                      | Declara `prisma` na tipagem de `FastifyInstance`.                                         |
 | `src/routes/health.ts`                        | Define `GET /health`.                                                                     |
 | `src/routes/categorias.ts`                    | Define `GET /categorias`, seu contrato de resposta e consulta Prisma.                     |
+| `src/routes/auth.ts`                           | Define cadastro, login, logout e consulta dos dados públicos do usuário autenticado.      |
 | `tests/api/`                                  | Testes HTTP/API que criam a aplicação e requisitam rotas.                                 |
 | `tests/banco/`                                | Testes de integridade do banco.                                                           |
 | `scripts/test-database.ts`                    | Valida e injeta a URL exclusiva do banco de teste antes de Vitest ou migrations de teste. |
@@ -36,11 +39,11 @@ Não há atualmente diretórios de services, repositories ou schemas compartilha
 ## 4. Fluxo de uma requisição
 
 1. `src/server.ts` chama `criarAplicacao()` de `src/app.ts`.
-2. `app.ts` cria o Fastify e registra o plugin Prisma, o plugin de documentação e os grupos `healthRoutes` e `categoriasRoutes`.
+2. `app.ts` cria o Fastify, registra Prisma, documentação, tratamento de erros e autenticação, e então registra os grupos de rotas.
 3. O plugin Prisma conecta o cliente na inicialização Fastify e o disponibiliza como `app.prisma`. Ao fechar a aplicação, o hook `onClose` desconecta.
 4. O grupo de rotas registra handlers HTTP. Na rota de categorias, o handler consulta apenas categorias ativas, ordena por `ordem` e seleciona explicitamente os campos públicos.
 5. Se a rota declara schemas Zod, os compiladores registrados pelo plugin fazem a validação/serialização compatível com Fastify e a transformação para OpenAPI.
-6. Fastify serializa a resposta e o plugin Swagger gera a especificação; Scalar a apresenta em `/reference`.
+6. Fastify serializa a resposta e o plugin Swagger gera a especificação; Scalar a apresenta em `/reference`. As rotas autenticadas documentam o esquema de segurança de cookie.
 
 O plugin Prisma é registrado na aplicação toda. Portanto, até testes de rotas que não consultam o banco iniciam a aplicação com a conexão Prisma; os testes de API devem usar o ambiente protegido descrito acima.
 
@@ -49,6 +52,7 @@ O plugin Prisma é registrado na aplicação toda. Portanto, até testes de rota
 - Coloque cada grupo de endpoints em `src/routes/<dominio>.ts`; o exemplo observado é `categorias.ts`, exportando `categoriasRoutes`.
 - Registre o grupo em `src/app.ts` com `app.register(nomeRoutes)`. Mantenha `app.ts` como ponto de composição e `server.ts` como ponto de inicialização, não de declaração de endpoints.
 - Declare no arquivo de rota o caminho, método, schema OpenAPI e handler que pertencem àquele grupo.
+- Para rotas privadas, use os hooks fornecidos pelo plugin de autenticação; não replique validação de JWT ou papel nos handlers.
 - Use serviço quando houver regra de negócio que mereça separação/reuso; use repository apenas se o acesso a dados justificar a camada. A implementação atual não comprova a necessidade de nenhuma dessas camadas.
 - Escolha e registre os caminhos antes de implementar novas rotas; a rota existente usa `/categorias` (plural em português).
 
@@ -91,7 +95,7 @@ Para cada entrada realmente aceita por uma nova rota:
 - rejeite entradas inválidas pelo mecanismo de validação; não converta a falha em sucesso nem ignore campos inválidos silenciosamente;
 - escreva testes que enviem entradas inválidas e confirmem o status e o formato realmente observado.
 
-Até aqui, `/categorias` declara apenas schema de resposta; não há exemplo implementado de validação de parâmetros, query ou body. A forma exata do payload de erro de validação não é coberta pelos testes atuais e deve ser verificada ao introduzir a primeira entrada validada.
+`/itens` valida `categoriaId` em query e UUID em parâmetro; `/combos/:id` valida UUID; as rotas de autenticação validam body com schemas estritos. Os testes de API verificam os formatos de validação usados por essas rotas.
 
 ## 7. Prisma, respostas e códigos HTTP
 
@@ -120,7 +124,18 @@ Até aqui, `/categorias` declara apenas schema de resposta; não há exemplo imp
 | `409`  | Conflito de unicidade ou de estado que impeça a operação.                                |
 | `500`  | Falha inesperada do servidor; não use para erros esperados que tenham status específico. |
 
-Esses códigos são critérios, não uma lista obrigatória para cada endpoint. A API atual não implementa autenticação nem cria/atualiza recursos, então `201`, `204`, `401`, `403` e `409` ainda não são padrões exercitados por rotas existentes.
+Esses códigos são critérios, não uma lista obrigatória para cada endpoint. A autenticação usa `201` no cadastro, `204` no logout, `401` para ausência/falha de autenticação, `403` para origem/papel não autorizado e `409` para duplicidade.
+
+### Autenticação, autorização e CSRF
+
+- `POST /auth/cadastro`, `POST /auth/login`, `POST /auth/logout` e `GET /auth/me` estão implementadas em `src/routes/auth.ts`.
+- `app.autenticar` valida exclusivamente o JWT do cookie `leosburger_session`, verifica a assinatura HS256 e a expiração, e consulta no Prisma o usuário ativo. O token contém somente `sub`; o papel e os dados públicos vêm do registro atual no banco.
+- Proteja uma rota privada com `onRequest: [app.autenticar]`. Use `preHandler: [app.autorizarAdmin]` em rotas administrativas; esse hook autentica, consulta o papel atual e permite somente `ADMIN` ativo. Não confie em papel do body/query/header.
+- Em rotas que alteram estado usando cookie, inclua `app.verificarOrigem` no `preHandler` antes da autorização. O hook rejeita `Origin` diferente de `FRONTEND_ORIGIN`; requisições sem `Origin` permanecem aceitas para clientes não navegador.
+- CORS com credenciais aceita somente a origem exata de `FRONTEND_ORIGIN`; não use wildcard. Cookies são `HttpOnly`, `SameSite=Strict`, `Path=/` e `Secure` em produção.
+- O JWT dura 30 dias para cliente e 12 horas para ADMIN. `/auth/logout` responde `204` e remove o cookie do navegador com os mesmos atributos de criação. Não há revogação no servidor: um JWT copiado segue válido até `exp`, salvo se a conta for desativada.
+- Configure `JWT_SECRET` com pelo menos 32 bytes. Configure `FRONTEND_ORIGIN` como uma origem HTTP/HTTPS sem caminho; em produção, ela deve usar HTTPS.
+- Cadastro público sempre cria `CLIENTE`, normaliza o e-mail, usa bcrypt e nunca devolve `senhaHash`. O login usa a mesma resposta genérica para e-mail inexistente e senha incorreta.
 
 ### Tratamento centralizado de erros
 
@@ -205,6 +220,7 @@ Não existe script separado chamado `test:api`; os seletores de arquivo/diretór
 - [ ] Documentei resposta de sucesso e erros reais com schemas coerentes com o handler.
 - [ ] Acessei o banco via `app.prisma`; selecionei apenas os campos necessários e não confiei em totais/preços do cliente.
 - [ ] Mantive autenticação/autorização e regras de negócio aprovadas; não criei camadas sem justificativa.
+- [ ] Em rota privada usei `app.autenticar` ou `app.autorizarAdmin`; em operações de escrita com cookie incluí `app.verificarOrigem`.
 - [ ] Cobri sucesso e erros relevantes com `app.inject`; a aplicação é fechada em `finally`.
 - [ ] Preparei dados apenas no banco de teste isolado, sem depender do banco de desenvolvimento nem executar seed destrutivo.
 - [ ] Conferi rota e contrato em `/reference/` e `/reference/openapi.json`.
@@ -217,7 +233,7 @@ Não existe script separado chamado `test:api`; os seletores de arquivo/diretór
 - O resumo de estado não listava `categorias.ts`/seu teste e dizia que a integração Zod ainda precisava ser confirmada; os arquivos reais comprovam ambos.
 - O plano de APIs registrava apenas `GET /health`, apesar de `GET /categorias` já existir; a documentação foi atualizada sem adicionar endpoint.
 - A especificação OpenAPI servida pelo Scalar está em `/reference/openapi.json` e `/reference` redireciona para `/reference/`; o endereço `/documentation/json` não existe nesta configuração.
-- `/categorias` é o exemplo atual de schema de resposta, `select` Prisma e documentação por descrição/tag. As rotas de produção ainda não validam parâmetros, query ou body; `tests/api/erros.test.ts` demonstra a validação em uma rota isolada da aplicação de teste.
+- `/categorias` é o exemplo de schema de resposta, `select` Prisma e documentação por descrição/tag. As rotas de itens, combos e autenticação também validam parâmetros/body quando aplicável; `tests/api/erros.test.ts` demonstra a validação centralizada em uma rota isolada da aplicação de teste.
 - O handler central padroniza validações, erros HTTP Fastify reconhecidos, rotas inexistentes e falhas inesperadas; detalhes das falhas inesperadas ficam apenas no log do servidor. Não há mecanismo instalado para mensagens específicas de erros HTTP do domínio.
 - `GET /health` não declara schema/descrição explícitos de resposta no código; o contrato OpenAPI dessa rota está menos completo que o de categorias.
 

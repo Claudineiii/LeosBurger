@@ -39,7 +39,7 @@ Esta pasta contém o mapa geral e um arquivo Markdown por sprint. Ela foi prepar
 - Um registro de `itens_pedido` representa um item individual OU um combo, nunca ambos.
 - Preservar no pedido os dados históricos de endereço, nome, preço, adicionais, composição do combo, desconto e taxa de entrega.
 - O histórico de status permanece no JSON existente do pedido.
-- JWT em cookie `HttpOnly`; sem revogação de token; logout remove o cookie. Validade: 30 dias para cliente e 12 horas para administrador. Sem tabela/coluna de sessão.
+- JWT em cookie `HttpOnly`; sem revogação de token; logout remove o cookie do navegador, mas tokens copiados permanecem válidos até expirar. Validade: 30 dias para cliente e 12 horas para administrador. Sem tabela/coluna de sessão.
 - Status existentes: `PENDENTE`, `CONFIRMADO`, `PREPARANDO`, `PRONTO`, `SAIU_PARA_ENTREGA`, `CONCLUIDO`, `CANCELADO`.
 - Entrega: `PENDENTE → CONFIRMADO → PREPARANDO → PRONTO → SAIU_PARA_ENTREGA → CONCLUIDO`.
 - Retirada: `PENDENTE → CONFIRMADO → PREPARANDO → PRONTO → CONCLUIDO`.

@@ -37,7 +37,12 @@ Regras:
 
 - Visitante pode fazer pedido sem criar conta somente se escolher PIX.
 - Para os demais métodos de pagamento, exige-se conta autenticada.
-- O cadastro/autenticação deve ser implementado com proteção adequada; detalhes finais de sessão/token precisam ser confirmados no plano técnico antes da implementação.
+- Cadastro público cria apenas usuários do tipo `CLIENTE`; a senha é armazenada com bcrypt e nunca aparece em respostas.
+- E-mails são removidos de espaços externos e convertidos para minúsculas no cadastro e login.
+- A autenticação usa JWT HS256 em cookie `HttpOnly`, `SameSite=Strict` e `Path=/`; o cookie recebe `Secure` em produção.
+- O JWT dura 30 dias para `CLIENTE` e 12 horas para `ADMIN`. O token contém o identificador do usuário; o servidor consulta a conta ativa e o papel atual antes de autorizar cada requisição protegida.
+- Logout limpa o cookie do navegador, mas não revoga JWTs copiados; eles continuam válidos até a expiração, enquanto o usuário permanecer ativo. Não há tabela de sessões, refresh token ou revogação nesta versão.
+- CORS com credenciais permite somente a origem exata configurada em `FRONTEND_ORIGIN`; operações de escrita recusam uma origem diferente.
 - O cliente pode escolher entrega ou retirada.
 - Em entrega, usar endereço do cliente, confirmar/editar os dados e calcular taxa.
 - Em retirada, informar o endereço do restaurante e apresentar o status do pedido.
