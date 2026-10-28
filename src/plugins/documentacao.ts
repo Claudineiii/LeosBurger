@@ -34,9 +34,15 @@ async function documentacaoPlugin(app: FastifyInstance) {
       const { openapiObject } = documentObject;
       const respostaLogout =
         openapiObject.paths?.["/auth/logout"]?.post?.responses["204"];
+      const respostaExclusaoEndereco =
+        openapiObject.paths?.["/auth/me/endereco"]?.delete?.responses["204"];
 
       if (respostaLogout && "content" in respostaLogout) {
         delete respostaLogout.content;
+      }
+
+      if (respostaExclusaoEndereco && "content" in respostaExclusaoEndereco) {
+        delete respostaExclusaoEndereco.content;
       }
 
       return openapiObject;

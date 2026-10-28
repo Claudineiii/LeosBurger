@@ -52,6 +52,11 @@ Não usar `/reference` como prova de que todas as rotas estão documentadas: cad
 | POST   | `/auth/login`    | Público | Validar credenciais e emitir cookie JWT. | Implementada; credenciais inválidas ou usuário inativo recebem resposta genérica `401`. |
 | POST   | `/auth/logout`   | Público | Apagar o cookie de autenticação do navegador. | Implementada; `204`, sem revogação de JWT copiado. |
 | GET    | `/auth/me`       | Autenticado | Consultar dados públicos do usuário autenticado. | Implementada; `401` para cookie ausente, inválido, expirado ou usuário inativo. |
+| PATCH  | `/auth/me`       | Autenticado | Atualizar nome, e-mail e/ou telefone próprios. | Implementada na Sprint 10; campos desconhecidos rejeitados, e-mail normalizado e conflito `409`. |
+| GET    | `/auth/me/endereco` | Autenticado | Consultar o endereço próprio. | Implementada na Sprint 10; `404` quando não cadastrado. |
+| POST   | `/auth/me/endereco` | Autenticado | Criar o endereço próprio. | Implementada na Sprint 10; `201`, `409` se já houver endereço. |
+| PATCH  | `/auth/me/endereco` | Autenticado | Atualizar parcialmente o endereço próprio. | Implementada na Sprint 10; `404` quando não cadastrado. |
+| DELETE | `/auth/me/endereco` | Autenticado | Excluir o endereço próprio. | Implementada na Sprint 10; `204`, snapshots de pedidos permanecem intactos. |
 
 O cookie `leosburger_session` é `HttpOnly`, `SameSite=Strict`, `Path=/` e `Secure` em produção. JWT HS256 expira em 30 dias para `CLIENTE` e 12 horas para `ADMIN`. O token contém somente `sub`; o servidor consulta o usuário ativo e seu tipo atual no banco em cada acesso protegido. Os hooks `app.autenticar`, `app.autorizarAdmin` e `app.verificarOrigem` são reutilizáveis nas rotas futuras. CORS com credenciais tem allowlist exata `FRONTEND_ORIGIN`; operações de escrita recusam `Origin` divergente.
 
@@ -127,10 +132,7 @@ Operações já implementadas:
 - `POST /auth/logout`;
 - `GET /auth/me`.
 
-Operações ainda planejadas:
-
-- consulta/edição de perfil;
-- listar/criar/editar endereço do cliente.
+As operações de perfil e endereço foram implementadas na Sprint 10. O perfil é identificado exclusivamente pela sessão; são atualizáveis `nome`, `email` e `telefone`. O modelo permite um único endereço por usuário, consultado/criado/editado/excluído em `/auth/me/endereco`; o CEP é normalizado para oito dígitos, o estado para maiúsculas e o número permanece texto. As respostas não expõem hash, `usuarioId`, coordenadas nem outros campos internos. Atualizações do endereço atual não alteram snapshots históricos de pedidos. Não há endereço principal nem geocodificação.
 
 Configuração requerida: `JWT_SECRET` com pelo menos 32 bytes; `FRONTEND_ORIGIN` deve ser a origem exata do frontend e HTTPS em produção. Não exponha hash de senha, cookie ou segredo em logs/respostas.
 

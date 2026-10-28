@@ -2,7 +2,7 @@
 
 ## Resumo executivo
 
-O LEOSBurger é um cardápio digital com pedidos online. A API possui rotas de saúde, catálogo público de categorias, itens e combos, cadastro/login/logout, identificação do usuário autenticado e administração protegida de categorias, itens e combos. A administração de combos da Sprint 9 lista, consulta, cria e atualiza dados/composição, permite remover associações logicamente e ativar/desativar combos. Perfil, endereços e pedidos continuam planejados.
+O LEOSBurger é um cardápio digital com pedidos online. A API possui rotas de saúde, catálogo público de categorias, itens e combos, autenticação, perfil, endereço do usuário e administração protegida de categorias, itens e combos. A administração de combos da Sprint 9 lista, consulta, cria e atualiza dados/composição, permite remover associações logicamente e ativar/desativar combos. Checkout e pedidos continuam planejados.
 
 ## Tecnologias e versões conhecidas
 
@@ -17,7 +17,7 @@ O LEOSBurger é um cardápio digital com pedidos online. A API possui rotas de s
 | Banco        | PostgreSQL 16                | Executado em Docker.                                                                                                  |
 | Container    | Docker Compose               | Serviço `postgres`, container conhecido `leosburger_postgres`.                                                        |
 | Testes       | Vitest 5.0.2                 | Testes de banco e API existentes.                                                                                     |
-| Documentação | Swagger/OpenAPI + Scalar     | Plugins configurados; `/categorias`, `/itens` e `/combos` documentam schemas e respostas.                            |
+| Documentação | Swagger/OpenAPI + Scalar     | Plugins configurados; catálogo, autenticação, perfil e endereço documentam schemas e respostas.                      |
 | Autenticação | JWT em cookie HttpOnly        | Implementada na Sprint 7; cookies `SameSite=Strict`, `Secure` em produção, 30 dias para cliente e 12 horas para ADMIN. |
 | Frontend     | HTML + TypeScript + Tailwind | Planejado; não usar React.                                                                                            |
 | UI opcional  | daisyUI / Flowbite           | Foram considerados para acelerar componentes; confirmar instalação antes de usar.                                     |
@@ -45,7 +45,8 @@ C:/LeosBurger/
 │   │   ├── combos.ts
 │   │   ├── auth.ts
 │   │   ├── catalogo-admin.ts
-│   │   └── combos-admin.ts
+│   │   ├── combos-admin.ts
+│   │   └── enderecos.ts
 │   └── types/
 │       └── fastify.d.ts
 ├── tests/
@@ -56,6 +57,7 @@ C:/LeosBurger/
 │   │   ├── auth.test.ts
 │   │   ├── catalogo-admin.test.ts
 │   │   ├── combos-admin.test.ts
+│   │   ├── perfil.test.ts
 │   │   ├── health.test.ts
 │   │   └── prisma.test.ts
 │   └── banco/
@@ -85,6 +87,13 @@ A autenticação usa JWT HS256 enviado em cookie; não há token de acesso no co
 | `POST /auth/login` | Normaliza e valida e-mail e senha; autentica somente usuário ativo. Credenciais incorretas, usuário inexistente ou inativo retornam o mesmo `401`. Sucesso retorna dados públicos e define o cookie JWT. |
 | `POST /auth/logout` | Retorna `204` e remove o cookie do navegador usando os atributos de criação. Não revoga o JWT no servidor: uma cópia obtida antes do logout continua utilizável até expirar, desde que o usuário siga ativo. |
 | `GET /auth/me` | Exige cookie JWT válido e retorna somente `id`, `nome`, `email`, `telefone` e `tipo` do usuário ativo. |
+| `PATCH /auth/me` | Atualiza nome, e-mail e/ou telefone do usuário autenticado; normaliza e-mail e retorna `409` genérico em conflito. Campos extras são rejeitados. |
+| `GET /auth/me/endereco` | Consulta o único endereço do usuário autenticado; retorna `404` se ainda não houver endereço. |
+| `POST /auth/me/endereco` | Cria o endereço do usuário; normaliza CEP e estado, aceita número textual e retorna `409` se já existir endereço. |
+| `PATCH /auth/me/endereco` | Atualiza parcialmente o endereço do usuário; não altera snapshots de pedidos existentes. |
+| `DELETE /auth/me/endereco` | Exclui o endereço atual do usuário; pedidos preservam seu snapshot histórico. |
+
+O modelo permite um endereço por usuário (`Endereco.usuarioId` é único); não há endereço principal nem geocodificação nesta sprint. As operações de endereço obtêm o proprietário do cookie autenticado e selecionam explicitamente os campos públicos. Escritas verificam a origem. Não há alteração no schema ou migrations nesta sprint.
 
 O cookie chama-se `leosburger_session` e usa `HttpOnly`, `SameSite=Strict`, `Path=/` e não define `Domain`. O prazo é de 30 dias para `CLIENTE` e 12 horas para `ADMIN`; o JWT e o cookie têm o mesmo prazo. `Secure` é habilitado em produção. Não há tabela de sessões, refresh token ou mecanismo de revogação. Desativar a conta impede novas requisições autenticadas porque o usuário é revalidado no banco a cada chamada.
 
@@ -115,4 +124,4 @@ As respostas administrativas selecionam explicitamente os campos de catálogo; o
 
 Os testes de integração `tests/api/catalogo-admin.test.ts` exercitam autenticação ausente, papel `CLIENTE`, papel `ADMIN`, origem divergente, CRUD parcial, unicidade, categoria inexistente, preço/entrada inválidos, ativação, listagens públicas/admin, JSON de adicionais e contrato OpenAPI. Os testes usam o banco isolado definido pelo wrapper do projeto e removem apenas fixtures criadas por cada teste. Nenhuma tabela, migration ou dependência foi adicionada.
 
-Validação desta entrega: o teste focado de catálogo passou (1 arquivo, 11 testes), a suíte completa passou (10 arquivos, 81 testes) e `npm run build` passou. A Sprint 8 está concluída; as rotas administrativas de combos permanecem planejadas para a Sprint 9.
+As Sprints 8 e 9 estão concluídas. Na Sprint 10, o teste focado passou (1 arquivo, 10 testes), a suíte completa passou (12 arquivos, 106 testes), `npm run build` passou e `npx prisma validate` confirmou o schema válido. O wrapper de testes usou o banco isolado `leosburger_test`; não houve alteração de schema nem execução de migration.

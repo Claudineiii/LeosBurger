@@ -8,6 +8,7 @@ import documentacaoPlugin from "./plugins/documentacao.js";
 import errosPlugin from "./plugins/erros.js";
 import autenticacaoPlugin from "./plugins/autenticacao.js";
 import { authRoutes } from "./routes/auth.js";
+import { enderecosRoutes } from "./routes/enderecos.js";
 import { catalogoAdminRoutes } from "./routes/catalogo-admin.js";
 import { combosAdminRoutes } from "./routes/combos-admin.js";
 
@@ -25,6 +26,7 @@ export function criarAplicacao() {
   app.register(itensRoutes);
   app.register(combosRoutes);
   app.register(authRoutes);
+  app.register(enderecosRoutes);
   app.register(catalogoAdminRoutes);
   app.register(combosAdminRoutes);
 

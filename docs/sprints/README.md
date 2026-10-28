@@ -16,7 +16,7 @@ Esta pasta contém o mapa geral e um arquivo Markdown por sprint. Ela foi prepar
 - Sprint 7: autenticação JWT e autorização.
 - Sprint 8: administração de categorias e itens — concluída; ver `SPRINT-08.md`.
 - Sprint 9: administração de combos — concluída com remoção lógica de associações, reativação e ativação/desativação; ver `SPRINT-09.md`.
-- Sprint 10: perfil e endereços.
+- Sprint 10: perfil e endereços — concluída; consultar `SPRINT-10.md`.
 - Sprint 11: validação/prévia do checkout.
 - Sprint 12: criação transacional do pedido.
 - Sprint 13: pagamento simulado e transições de status.

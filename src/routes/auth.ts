@@ -46,6 +46,17 @@ const loginBodySchema = z
   })
   .strict();
 
+const atualizarPerfilBodySchema = z
+  .object({
+    nome: z.string().trim().min(2).max(100).optional(),
+    email: z.string().trim().toLowerCase().email().max(255).optional(),
+    telefone: z.string().trim().min(8).max(20).optional(),
+  })
+  .strict()
+  .refine((body) => Object.keys(body).length > 0, {
+    message: "Informe ao menos um campo para atualizar.",
+  });
+
 const erroValidacaoResponseSchema = z.object({
   status: z.literal(400),
   error: z.literal("VALIDATION_ERROR"),
@@ -243,6 +254,71 @@ export async function authRoutes(app: FastifyInstance) {
       }
 
       return usuario;
+    },
+  );
+
+  routes.patch(
+    "/auth/me",
+    {
+      onRequest: [app.autenticar],
+      preHandler: [app.verificarOrigem],
+      schema: {
+        description: "Atualiza nome, e-mail ou telefone do usuário autenticado.",
+        tags: ["Autenticação", "Perfil"],
+        security: [{ sessionCookie: [] }],
+        body: atualizarPerfilBodySchema,
+        response: {
+          200: usuarioResponseSchema,
+          400: erroValidacaoResponseSchema,
+          401: erroAutenticacaoResponseSchema,
+          403: erroAutorizacaoResponseSchema,
+          409: erroConflitoResponseSchema,
+          500: erroInternoResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const usuarioAutenticado = request.usuarioAutenticado;
+      if (!usuarioAutenticado) {
+        return reply.code(401).send({
+          status: 401,
+          error: "UNAUTHORIZED",
+          message: "Autenticação necessária.",
+        });
+      }
+
+      try {
+        return await app.prisma.usuario.update({
+          where: { id: usuarioAutenticado.id },
+          data: {
+            ...(request.body.nome !== undefined ? { nome: request.body.nome } : {}),
+            ...(request.body.email !== undefined ? { email: request.body.email } : {}),
+            ...(request.body.telefone !== undefined
+              ? { telefone: request.body.telefone }
+              : {}),
+          },
+          select: {
+            id: true,
+            nome: true,
+            email: true,
+            telefone: true,
+            tipo: true,
+          },
+        });
+      } catch (erro) {
+        if (
+          erro instanceof Prisma.PrismaClientKnownRequestError &&
+          erro.code === "P2002"
+        ) {
+          return reply.code(409).send({
+            status: 409,
+            error: "CONFLICT",
+            message: "Não foi possível atualizar o perfil com esses dados.",
+          });
+        }
+
+        throw erro;
+      }
     },
   );
 

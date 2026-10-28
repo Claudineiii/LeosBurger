@@ -11,7 +11,7 @@
 | 07 | Autenticação JWT e autorização | Concluída; testes e build aprovados |
 | 08 | Administração de categorias e itens | Concluída; testes de integração e build aprovados |
 | 09 | Administração de combos | Concluída; remoção lógica, reativação e disponibilidade administrativa implementadas |
-| 10 | Perfil e endereços | Após 07 |
+| 10 | Perfil e endereços | Concluída; perfil e endereço próprio implementados e testados |
 | 11 | Validação/prévia do checkout | Após catálogo, autenticação e endereços |
 | 12 | Criação transacional do pedido | Após 11 |
 | 13 | Pagamento simulado e status | Após 12 |

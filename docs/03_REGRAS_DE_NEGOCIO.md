@@ -47,7 +47,7 @@ Regras:
 - Visitante pode fazer pedido sem criar conta somente se escolher PIX.
 - Para os demais métodos de pagamento, exige-se conta autenticada.
 - Cadastro público cria apenas usuários do tipo `CLIENTE`; a senha é armazenada com bcrypt e nunca aparece em respostas.
-- E-mails são removidos de espaços externos e convertidos para minúsculas no cadastro e login.
+- E-mails são removidos de espaços externos e convertidos para minúsculas no cadastro, login e atualização do perfil.
 - A autenticação usa JWT HS256 em cookie `HttpOnly`, `SameSite=Strict` e `Path=/`; o cookie recebe `Secure` em produção.
 - O JWT dura 30 dias para `CLIENTE` e 12 horas para `ADMIN`. O token contém o identificador do usuário; o servidor consulta a conta ativa e o papel atual antes de autorizar cada requisição protegida.
 - Logout limpa o cookie do navegador, mas não revoga JWTs copiados; eles continuam válidos até a expiração, enquanto o usuário permanecer ativo. Não há tabela de sessões, refresh token ou revogação nesta versão.
@@ -56,6 +56,10 @@ Regras:
 - Em entrega, usar endereço do cliente, confirmar/editar os dados e calcular taxa.
 - Em retirada, informar o endereço do restaurante e apresentar o status do pedido.
 - Endereço atual do perfil pode mudar, mas pedidos antigos preservam o endereço usado no momento da compra.
+- O modelo admite um endereço por usuário. O próprio usuário autenticado pode consultar, criar, atualizar ou excluir seu endereço; a API não aceita identidade do proprietário enviada pelo cliente.
+- CEP é armazenado como string de oito dígitos; a API aceita a forma numérica ou com hífen e normaliza removendo o hífen. O número do endereço é texto e pode conter `S/N`.
+- Não há endereço principal no modelo atual. A manutenção do endereço não realiza geocodificação nem altera pedidos existentes.
+- O perfil permite atualizar nome, e-mail e telefone; o e-mail é normalizado para minúsculas. Campos de senha, papel, estado da conta e identificador não podem ser alterados por esse endpoint.
 
 ## 4. Pagamentos
 

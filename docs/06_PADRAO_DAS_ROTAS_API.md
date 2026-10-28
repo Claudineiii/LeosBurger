@@ -4,7 +4,7 @@
 
 Este guia registra o que está comprovado na API atual e estabelece um procedimento para implementar e verificar futuras rotas com Fastify, TypeScript, Zod, Prisma, OpenAPI/Scalar e Vitest.
 
-O guia registra as rotas públicas de catálogo, autenticação e administração de categorias/itens implementadas. Perfil, endereços e pedidos continuam fora deste escopo. O código real continua sendo a referência: confira os arquivos antes de reutilizar qualquer exemplo.
+O guia registra as rotas públicas de catálogo, autenticação, perfil, endereços e administração de categorias/itens implementadas. Pedidos continuam fora deste escopo. O código real continua sendo a referência: confira os arquivos antes de reutilizar qualquer exemplo.
 
 ## 2. Pré-requisitos
 
@@ -29,10 +29,12 @@ O guia registra as rotas públicas de catálogo, autenticação e administraçã
 | `src/routes/categorias.ts`                    | Define `GET /categorias`, seu contrato de resposta e consulta Prisma.                     |
 | `src/routes/catalogo-admin.ts`                | Define as rotas ADMIN de categorias e itens, com validação, persistência e contratos OpenAPI. |
 | `src/routes/combos-admin.ts`                  | Define as rotas ADMIN de combos e composição, com preço manual e transações. |
-| `src/routes/auth.ts`                           | Define cadastro, login, logout e consulta dos dados públicos do usuário autenticado.      |
+| `src/routes/auth.ts`                           | Define cadastro, login, logout, consulta e atualização dos dados públicos do usuário autenticado. |
+| `src/routes/enderecos.ts`                      | Define consulta, criação, atualização e exclusão do endereço próprio do usuário autenticado. |
 | `tests/api/`                                  | Testes HTTP/API que criam a aplicação e requisitam rotas.                                 |
 | `tests/api/catalogo-admin.test.ts`             | Testes de integração de autenticação/autorização e administração de categorias/itens.       |
 | `tests/api/combos-admin.test.ts`               | Testes de integração da administração de combos e composição.                               |
+| `tests/api/perfil.test.ts`                     | Testes de integração de perfil, endereço, propriedade, snapshots e OpenAPI.                  |
 | `tests/banco/`                                | Testes de integridade do banco.                                                           |
 | `scripts/test-database.ts`                    | Valida e injeta a URL exclusiva do banco de teste antes de Vitest ou migrations de teste. |
 | `vitest.config.ts`                            | Carrega o ambiente seguro de teste também quando Vitest é invocado diretamente.           |
@@ -139,7 +141,8 @@ Esses códigos são critérios, não uma lista obrigatória para cada endpoint. 
 
 ### Autenticação, autorização e CSRF
 
-- `POST /auth/cadastro`, `POST /auth/login`, `POST /auth/logout` e `GET /auth/me` estão implementadas em `src/routes/auth.ts`.
+- `POST /auth/cadastro`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` e `PATCH /auth/me` estão implementadas em `src/routes/auth.ts`.
+- `GET`, `POST`, `PATCH` e `DELETE /auth/me/endereco` estão implementadas em `src/routes/enderecos.ts`. O proprietário sempre vem de `request.usuarioAutenticado`; não aceite `usuarioId` enviado pelo cliente.
 - `app.autenticar` valida exclusivamente o JWT do cookie `leosburger_session`, verifica a assinatura HS256 e a expiração, e consulta no Prisma o usuário ativo. O token contém somente `sub`; o papel e os dados públicos vêm do registro atual no banco.
 - Proteja uma rota privada com `onRequest: [app.autenticar]`. Use `preHandler: [app.autorizarAdmin]` em rotas administrativas; esse hook autentica, consulta o papel atual e permite somente `ADMIN` ativo. Não confie em papel do body/query/header.
 - Em rotas que alteram estado usando cookie, inclua `app.verificarOrigem` no `preHandler` antes da autorização. O hook rejeita `Origin` diferente de `FRONTEND_ORIGIN`; requisições sem `Origin` permanecem aceitas para clientes não navegador.
@@ -147,6 +150,10 @@ Esses códigos são critérios, não uma lista obrigatória para cada endpoint. 
 - O JWT dura 30 dias para cliente e 12 horas para ADMIN. `/auth/logout` responde `204` e remove o cookie do navegador com os mesmos atributos de criação. Não há revogação no servidor: um JWT copiado segue válido até `exp`, salvo se a conta for desativada.
 - Configure `JWT_SECRET` com pelo menos 32 bytes. Configure `FRONTEND_ORIGIN` como uma origem HTTP/HTTPS sem caminho; em produção, ela deve usar HTTPS.
 - Cadastro público sempre cria `CLIENTE`, normaliza o e-mail, usa bcrypt e nunca devolve `senhaHash`. O login usa a mesma resposta genérica para e-mail inexistente e senha incorreta.
+- O PATCH de `/auth/me` aceita somente `nome`, `email` e `telefone`; normaliza e-mail, rejeita corpo vazio e campos desconhecidos, seleciona a resposta pública e converte conflito de e-mail para `409`.
+- O modelo atual limita o usuário a um endereço. A API usa a rota singular `/auth/me/endereco`; POST cria somente quando ausente, PATCH atualiza somente quando presente e GET/DELETE respondem `404` se não existir.
+- O schema Zod de endereço valida CEP e normaliza para oito dígitos, normaliza estado para duas letras maiúsculas e mantém `numero` como texto. A API não recebe coordenadas nem `usuarioId`; respostas selecionam explicitamente campos públicos.
+- As escritas de perfil/endereço usam `app.verificarOrigem`. Alterar/excluir o endereço atual não modifica snapshots de pedidos, e não há endereço principal no modelo.
 
 ### Tratamento centralizado de erros
 
