@@ -14,11 +14,12 @@
 5. Leia `05_PLANO_DE_APIS.md` para distinguir endpoints planejados dos implementados.
 6. Leia `07_TESTES.md` antes de executar testes ou migrations de teste.
 7. Leia `06_PADRAO_DAS_ROTAS_API.md` ao verificar ou criar rotas HTTP.
-8. Use `AGENTS.md` na raiz como instrução persistente para agentes que trabalhem no repositório.
+8. Leia `sprints/MAPA.md` para diagramas Mermaid, dependências e decisões arquiteturais consolidadas.
+9. Use `AGENTS.md` na raiz como instrução persistente para agentes que trabalhem no repositório.
 
 ## Regra de ouro
 
-A documentação descreve decisões e estado conhecidos, mas **não substitui a inspeção do código real**. Antes de alterar o projeto, o agente deve verificar `git status`, os últimos commits, `package.json`, `prisma/schema.prisma`, migrations, `src/` e `tests/`. Se o código contradisser este pacote, não corrigir silenciosamente: informar a divergência e pedir decisão quando ela afetar arquitetura, regras de negócio ou dados.
+A documentação descreve decisões aprovadas e estado conhecido, mas **não substitui a inspeção do código real**. Antes de alterar o projeto, o agente deve registrar `git status` (incluindo stage e não rastreados), branch/HEAD, os últimos commits, `package.json`, `prisma/schema.prisma`, migrations, `src/` e `tests/`, preservando alterações locais. Se o código contradisser uma regra aprovada, informar a divergência, manter clara a diferença entre implementação e planejamento e não reabrir a decisão aprovada; solicitar decisão somente para questão realmente não definida.
 
 ## Índice
 
@@ -36,6 +37,7 @@ A documentação descreve decisões e estado conhecidos, mas **não substitui a 
 - **Implementado/validado:** observado no histórico recente do projeto.
 - **Planejado:** decisão de escopo ou próxima etapa, ainda não necessariamente codificada.
 - **A confirmar no código:** detalhe que precisa ser verificado no repositório atual.
+- As regras comerciais registradas como aprovadas são definitivas; dúvidas técnicas não podem convertê-las em decisões pendentes.
 - Os nomes das tabelas e domínios são em português.
 - Não usar React/JSX.
 - Não atualizar Prisma para a versão 7 sem decisão explícita.
