@@ -119,6 +119,17 @@ async function autenticacaoPlugin(app: FastifyInstance) {
     request.usuarioAutenticado = usuario;
   };
 
+  const autenticarOpcional: preHandlerAsyncHookHandler = async (
+    request,
+    reply,
+  ) => {
+    if (!request.cookies[COOKIE_SESSAO_NOME]) {
+      return;
+    }
+
+    await autenticar.call(app, request, reply);
+  };
+
   const verificarOrigem: preHandlerAsyncHookHandler = async (request, reply) => {
     const origemRecebida = request.headers.origin;
     if (!origemRecebida) {
@@ -153,6 +164,7 @@ async function autenticacaoPlugin(app: FastifyInstance) {
   };
 
   app.decorate("autenticar", autenticar);
+  app.decorate("autenticarOpcional", autenticarOpcional);
   app.decorate("verificarOrigem", verificarOrigem);
   app.decorate("autorizarAdmin", autorizarAdmin);
 }

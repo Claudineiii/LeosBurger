@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { type ZodTypeProvider } from "@fastify/type-provider-zod";
 import { z } from "zod";
+import { lerAdicionaisPublicos } from "../services/adicionais.js";
 
 const querySchema = z.object({
   categoriaId: z
@@ -18,6 +19,14 @@ const itemResponseSchema = z.object({
   preco: z.number(),
   imagemUrl: z.string().nullable(),
   ordem: z.number(),
+  adicionais: z.array(
+    z.object({
+      id: z.string().uuid(),
+      nome: z.string(),
+      preco: z.number(),
+      quantidadeMaxima: z.number(),
+    }),
+  ),
 });
 
 const itensResponseSchema = z.array(itemResponseSchema);
@@ -82,12 +91,21 @@ export async function itensRoutes(app: FastifyInstance) {
           preco: true,
           imagemUrl: true,
           ordem: true,
+          adicionais: true,
         },
       });
 
       return itens.map((item) => ({
         ...item,
         preco: item.preco.toNumber(),
+        adicionais: lerAdicionaisPublicos(item.adicionais).map(
+          ({ id, nome, preco, quantidadeMaxima }) => ({
+            id,
+            nome,
+            preco,
+            quantidadeMaxima,
+          }),
+        ),
       }));
     },
   );
@@ -120,6 +138,7 @@ export async function itensRoutes(app: FastifyInstance) {
           preco: true,
           imagemUrl: true,
           ordem: true,
+          adicionais: true,
         },
       });
 
@@ -134,6 +153,14 @@ export async function itensRoutes(app: FastifyInstance) {
       return {
         ...item,
         preco: item.preco.toNumber(),
+        adicionais: lerAdicionaisPublicos(item.adicionais).map(
+          ({ id, nome, preco, quantidadeMaxima }) => ({
+            id,
+            nome,
+            preco,
+            quantidadeMaxima,
+          }),
+        ),
       };
     },
   );

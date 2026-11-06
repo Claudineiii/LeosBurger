@@ -11,6 +11,11 @@ import { authRoutes } from "./routes/auth.js";
 import { enderecosRoutes } from "./routes/enderecos.js";
 import { catalogoAdminRoutes } from "./routes/catalogo-admin.js";
 import { combosAdminRoutes } from "./routes/combos-admin.js";
+import limpezaReferenciasEnderecoPlugin from "./plugins/limpeza-referencias-endereco.js";
+import { checkoutEnderecoVisitanteRoutes } from "./routes/checkout-endereco-visitante.js";
+import { cuponsAdminRoutes } from "./routes/cupons-admin.js";
+import { faixasFreteAdminRoutes } from "./routes/faixas-frete-admin.js";
+import { checkoutPreviewRoutes } from "./routes/checkout-preview.js";
 
 export function criarAplicacao() {
   const app = Fastify({
@@ -18,6 +23,7 @@ export function criarAplicacao() {
   });
 
   app.register(prismaPlugin);
+  app.register(limpezaReferenciasEnderecoPlugin);
   app.register(documentacaoPlugin);
   app.register(errosPlugin);
   app.register(autenticacaoPlugin);
@@ -27,8 +33,12 @@ export function criarAplicacao() {
   app.register(combosRoutes);
   app.register(authRoutes);
   app.register(enderecosRoutes);
+  app.register(checkoutEnderecoVisitanteRoutes);
+  app.register(checkoutPreviewRoutes);
   app.register(catalogoAdminRoutes);
   app.register(combosAdminRoutes);
+  app.register(cuponsAdminRoutes);
+  app.register(faixasFreteAdminRoutes);
 
   return app;
 }

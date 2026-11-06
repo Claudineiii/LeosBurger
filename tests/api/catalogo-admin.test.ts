@@ -342,7 +342,7 @@ describe("administração de categorias e itens", () => {
     );
   });
 
-  it("cria item com preço monetário e JSON válido sem expor adicionais publicamente", async () => {
+  it("cria item com adicionais estruturados e expõe somente os ativos", async () => {
     await comCatalogoAdmin(async (app, adminCookie, _clienteCookie, trackCategoria, trackItem) => {
       const categoria = await criarCategoriaNoBanco(app);
       trackCategoria(categoria.id);
@@ -353,7 +353,16 @@ describe("administração de categorias e itens", () => {
         preco: 19.9,
         imagemUrl: "https://example.test/item.jpg",
         ordem: 2,
-        adicionais: [{ nome: "Cheddar", preco: 2.5 }],
+        adicionais: [
+          { id: randomUUID(), nome: "Cheddar", preco: 2.5, ativo: true },
+          {
+            id: randomUUID(),
+            nome: "Bacon",
+            preco: 3,
+            ativo: false,
+            quantidadeMaxima: 2,
+          },
+        ],
       };
 
       const criado = await app.inject({
@@ -369,6 +378,24 @@ describe("administração de categorias e itens", () => {
       const publico = criado.statusCode === 201
         ? await app.inject({ method: "GET", url: `/itens/${criado.json().id}` })
         : undefined;
+      const adicionalInvalido = await app.inject({
+        method: "POST",
+        url: "/admin/itens",
+        headers: { cookie: adminCookie },
+        payload: {
+          ...payload,
+          nome: `Item adicional inválido ${randomUUID()}`,
+          adicionais: [
+            {
+              id: randomUUID(),
+              nome: "Cheddar",
+              preco: 2.5,
+              ativo: true,
+              quantidadeMaxima: 0,
+            },
+          ],
+        },
+      });
 
       expect(criado.statusCode).toBe(201);
       expect(criado.json()).toMatchObject({
@@ -383,8 +410,16 @@ describe("administração de categorias e itens", () => {
         adicionais: payload.adicionais,
       });
       expect(publico?.statusCode).toBe(200);
-      expect(publico?.body).not.toContain("adicionais");
+      expect(publico?.json().adicionais).toEqual([
+        {
+          id: payload.adicionais[0]!.id,
+          nome: "Cheddar",
+          preco: 2.5,
+          quantidadeMaxima: 1,
+        },
+      ]);
       expect(publico?.body).not.toContain("ativo");
+      expect(adicionalInvalido.statusCode).toBe(400);
     });
   });
 

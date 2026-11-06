@@ -117,9 +117,10 @@ describe("rotas de itens", () => {
           preco: 23.45,
           imagemUrl: "https://example.com/detalhe.png",
           ordem: 2,
+          adicionais: [],
         });
         expect(typeof corpo.preco).toBe("number");
-        expect(resposta.body).not.toContain("adicionais");
+        expect(corpo.adicionais).toEqual([]);
         expect(resposta.body).not.toContain("criadoEm");
         expect(resposta.body).not.toContain("atualizadoEm");
         expect(resposta.body).not.toContain('"ativo"');
@@ -218,11 +219,11 @@ describe("rotas de itens", () => {
             preco: 15.75,
             imagemUrl: "https://example.com/item.png",
             ordem: 1,
+            adicionais: [],
           },
         ]),
       );
       expect(resposta.body).not.toContain(itemInativo.id);
-      expect(resposta.body).not.toContain("adicionais");
       expect(resposta.body).not.toContain("criadoEm");
       expect(resposta.body).not.toContain("atualizadoEm");
       expect(resposta.body).not.toContain('"ativo"');

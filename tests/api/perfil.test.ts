@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { MetodoPagamento, TipoEntrega, TipoUsuario } from "@prisma/client";
+import {
+  MetodoPagamento,
+  Prisma,
+  TipoEntrega,
+  TipoUsuario,
+} from "@prisma/client";
 import type { FastifyInstance } from "fastify";
 import bcrypt from "bcryptjs";
 import { describe, expect, it } from "vitest";
@@ -50,6 +55,10 @@ async function comUsuarios(
     rastrearPedido: (id: string) => void,
   ) => Promise<void>,
 ) {
+  const apiKeyAnterior = process.env.GEOAPIFY_API_KEY;
+  const cacheKeyAnterior = process.env.GEOAPIFY_CACHE_HMAC_KEY;
+  process.env.GEOAPIFY_API_KEY = "";
+  process.env.GEOAPIFY_CACHE_HMAC_KEY = "";
   const app = criarAplicacao();
   const usuarioIds: string[] = [];
   const pedidoIds: string[] = [];
@@ -96,7 +105,21 @@ async function comUsuarios(
       });
     }
 
-    await app.close();
+    try {
+      await app.close();
+    } finally {
+      if (apiKeyAnterior === undefined) {
+        delete process.env.GEOAPIFY_API_KEY;
+      } else {
+        process.env.GEOAPIFY_API_KEY = apiKeyAnterior;
+      }
+
+      if (cacheKeyAnterior === undefined) {
+        delete process.env.GEOAPIFY_CACHE_HMAC_KEY;
+      } else {
+        process.env.GEOAPIFY_CACHE_HMAC_KEY = cacheKeyAnterior;
+      }
+    }
   }
 }
 
@@ -313,9 +336,11 @@ describe("perfil e endereços do usuário", () => {
         estado: "SP",
         complemento: null,
         referencia: null,
+        latitude: null,
+        longitude: null,
+        statusGeocodificacao: "PENDENTE",
       });
       expect(criado.json()).not.toHaveProperty("usuarioId");
-      expect(criado.json()).not.toHaveProperty("latitude");
       expect(consultado.statusCode).toBe(200);
       expect(consultado.json().id).toBe(criado.json().id);
       expect(atualizado.statusCode).toBe(200);
@@ -324,6 +349,127 @@ describe("perfil e endereços do usuário", () => {
         estado: "RJ",
         complemento: null,
         numero: "S/N",
+      });
+    });
+  });
+
+  it("remove coordenadas antigas quando a localização muda e não pode ser validada", async () => {
+    await comUsuarios(async (app, primeiro, cookie) => {
+      const headers = headersComCookie(cookie);
+      const criado = await app.inject({
+        method: "POST",
+        url: "/auth/me/endereco",
+        headers,
+        payload: enderecoValido,
+      });
+      expect(criado.statusCode).toBe(201);
+
+      await app.prisma.endereco.update({
+        where: { usuarioId: primeiro.id },
+        data: {
+          latitude: new Prisma.Decimal("-22.900000"),
+          longitude: new Prisma.Decimal("-47.060000"),
+        },
+      });
+
+      const atualizado = await app.inject({
+        method: "PATCH",
+        url: "/auth/me/endereco",
+        headers,
+        payload: { logradouro: "Avenida Nova" },
+      });
+
+      expect(atualizado.statusCode).toBe(200);
+      expect(atualizado.json()).toMatchObject({
+        logradouro: "Avenida Nova",
+        latitude: null,
+        longitude: null,
+        statusGeocodificacao: "PENDENTE",
+      });
+    });
+  });
+
+  it("preserva coordenadas ao atualizar somente complemento ou referência", async () => {
+    await comUsuarios(async (app, primeiro, cookie) => {
+      const headers = headersComCookie(cookie);
+      const criado = await app.inject({
+        method: "POST",
+        url: "/auth/me/endereco",
+        headers,
+        payload: enderecoValido,
+      });
+      expect(criado.statusCode).toBe(201);
+
+      await app.prisma.endereco.update({
+        where: { usuarioId: primeiro.id },
+        data: {
+          latitude: new Prisma.Decimal("-22.900000"),
+          longitude: new Prisma.Decimal("-47.060000"),
+        },
+      });
+
+      const atualizado = await app.inject({
+        method: "PATCH",
+        url: "/auth/me/endereco",
+        headers,
+        payload: { complemento: "Casa 2" },
+      });
+
+      expect(atualizado.statusCode).toBe(200);
+      expect(atualizado.json()).toMatchObject({
+        complemento: "Casa 2",
+        latitude: -22.9,
+        longitude: -47.06,
+        statusGeocodificacao: "CONFIRMADO",
+      });
+    });
+  });
+
+  it("permite correção manual somente com o par de coordenadas validado", async () => {
+    await comUsuarios(async (app, _primeiro, cookie) => {
+      const headers = headersComCookie(cookie);
+      const incompleto = await app.inject({
+        method: "POST",
+        url: "/auth/me/endereco",
+        headers,
+        payload: { ...enderecoValido, latitude: -22.9 },
+      });
+      const criado = await app.inject({
+        method: "POST",
+        url: "/auth/me/endereco",
+        headers,
+        payload: {
+          ...enderecoValido,
+          latitude: -22.9,
+          longitude: -47.06,
+        },
+      });
+      const corrigido = criado.statusCode === 201
+        ? await app.inject({
+            method: "PATCH",
+            url: "/auth/me/endereco",
+            headers,
+            payload: {
+              logradouro: "Rua corrigida",
+              latitude: -22.91,
+              longitude: -47.07,
+            },
+          })
+        : undefined;
+
+      expect(incompleto.statusCode).toBe(400);
+      expect(criado.statusCode).toBe(201);
+      expect(criado.json()).toMatchObject({
+        latitude: -22.9,
+        longitude: -47.06,
+        statusGeocodificacao: "CONFIRMADO",
+      });
+      expect(corrigido?.statusCode).toBe(200);
+      expect(corrigido?.json()).toMatchObject({
+        logradouro: "Rua corrigida",
+        latitude: -22.91,
+        longitude: -47.07,
+        statusGeocodificacao: "CONFIRMADO",
       });
     });
   });

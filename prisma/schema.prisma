@@ -42,6 +42,28 @@ enum MetodoPagamento {
   @@map("metodo_pagamento")
 }
 
+enum StatusReferenciaEndereco {
+  CONFIRMADO
+  PENDENTE
+
+  @@map("status_referencia_endereco")
+}
+
+enum MotivoPendenciaEndereco {
+  SEM_RESULTADO
+  AMBIGUO
+  PROVEDOR_INDISPONIVEL
+
+  @@map("motivo_pendencia_endereco")
+}
+
+enum TipoDescontoCupom {
+  FIXO
+  PERCENTUAL
+
+  @@map("tipo_desconto_cupom")
+}
+
 model Usuario {
   id           String      @id @default(uuid())
   nome         String      @db.VarChar(100)
@@ -80,6 +102,58 @@ model Endereco {
   @@map("enderecos")
 }
 
+model ReferenciaEndereco {
+  id              String                   @id @default(uuid())
+  tokenHash       String                   @unique @map("token_hash") @db.Char(64)
+  cep             String                   @db.VarChar(8)
+  logradouro      String                   @db.VarChar(150)
+  numero          String                   @db.VarChar(20)
+  complemento     String?                  @db.VarChar(100)
+  bairro          String                   @db.VarChar(100)
+  cidade          String                   @db.VarChar(100)
+  estado          String                   @db.VarChar(2)
+  referencia      String?                  @db.VarChar(150)
+  situacao        StatusReferenciaEndereco
+  motivoPendencia MotivoPendenciaEndereco? @map("motivo_pendencia")
+  latitude        Decimal?                 @db.Decimal(9, 6)
+  longitude       Decimal?                 @db.Decimal(9, 6)
+  expiraEm        DateTime                 @map("expira_em") @db.Timestamptz(3)
+  criadoEm        DateTime                 @default(now()) @map("criado_em") @db.Timestamptz(3)
+
+  @@index([expiraEm])
+  @@map("referencias_endereco")
+}
+
+model CacheGeoapify {
+  id        String   @id @default(uuid())
+  chaveHmac String   @unique @map("chave_hmac") @db.Char(64)
+  resultado Json     @db.JsonB
+  expiraEm  DateTime @map("expira_em") @db.Timestamptz(3)
+  criadoEm  DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+
+  @@index([expiraEm])
+  @@map("cache_geoapify")
+}
+
+model ControleGeoapify {
+  id              Int       @id @default(1)
+  diaUtc          DateTime  @map("dia_utc") @db.Date
+  reservasDia     Int       @default(0) @map("reservas_dia")
+  ultimaReservaEm DateTime? @map("ultima_reserva_em") @db.Timestamptz(3)
+  atualizadoEm    DateTime  @updatedAt @map("atualizado_em") @db.Timestamptz(3)
+
+  @@map("controle_geoapify")
+}
+
+model ReservaCacheGeoapify {
+  chaveHmac    String   @id @map("chave_hmac") @db.Char(64)
+  tokenReserva String   @map("token_reserva") @db.Char(64)
+  expiraEm     DateTime @map("expira_em") @db.Timestamptz(3)
+
+  @@index([expiraEm])
+  @@map("reservas_cache_geoapify")
+}
+
 model Categoria {
   id           String   @id @default(uuid())
   nome         String   @unique @db.VarChar(100)
@@ -110,6 +184,7 @@ model Item {
   categoria   Categoria    @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
   itensCombo  ItemCombo[]
   itensPedido ItemPedido[]
+  cupons      CupomItem[]
 
   @@unique([categoriaId, nome])
   @@map("itens")
@@ -128,8 +203,80 @@ model Combo {
 
   itensCombo  ItemCombo[]
   itensPedido ItemPedido[]
+  cupons      CupomCombo[]
 
   @@map("combos")
+}
+
+model Cupom {
+  id             String            @id @default(uuid())
+  codigo         String            @unique @db.VarChar(50)
+  tipoDesconto   TipoDescontoCupom @map("tipo_desconto")
+  valor          Decimal           @db.Decimal(10, 2)
+  ativo          Boolean           @default(true)
+  validadeInicio DateTime          @map("validade_inicio") @db.Date
+  validadeFim    DateTime          @map("validade_fim") @db.Date
+  compraMinima   Decimal?          @map("compra_minima") @db.Decimal(10, 2)
+  limiteUsos     Int?              @map("limite_usos")
+  criadoEm       DateTime          @default(now()) @map("criado_em")
+  atualizadoEm   DateTime          @updatedAt @map("atualizado_em")
+
+  itensElegiveis  CupomItem[]
+  combosElegiveis CupomCombo[]
+  utilizacoes     CupomUtilizacao[]
+
+  @@index([ativo, validadeInicio, validadeFim])
+  @@map("cupons")
+}
+
+model CupomItem {
+  cupomId String @map("cupom_id")
+  itemId  String @map("item_id")
+
+  cupom Cupom @relation(fields: [cupomId], references: [id], onDelete: Cascade)
+  item  Item  @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@id([cupomId, itemId])
+  @@index([itemId])
+  @@map("cupons_itens")
+}
+
+model CupomCombo {
+  cupomId String @map("cupom_id")
+  comboId String @map("combo_id")
+
+  cupom Cupom @relation(fields: [cupomId], references: [id], onDelete: Cascade)
+  combo Combo @relation(fields: [comboId], references: [id], onDelete: Cascade)
+
+  @@id([cupomId, comboId])
+  @@index([comboId])
+  @@map("cupons_combos")
+}
+
+model CupomUtilizacao {
+  id       String   @id @default(uuid())
+  cupomId  String   @map("cupom_id")
+  pedidoId String   @unique @map("pedido_id")
+  criadoEm DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+
+  cupom  Cupom  @relation(fields: [cupomId], references: [id], onDelete: Restrict)
+  pedido Pedido @relation(fields: [pedidoId], references: [id], onDelete: Restrict)
+
+  @@index([cupomId])
+  @@map("cupons_utilizacoes")
+}
+
+model FaixaFrete {
+  id              String   @id @default(uuid())
+  distanciaMinima Decimal  @map("distancia_minima") @db.Decimal(5, 2)
+  distanciaMaxima Decimal  @map("distancia_maxima") @db.Decimal(5, 2)
+  valor           Decimal  @db.Decimal(10, 2)
+  ativa           Boolean  @default(true)
+  criadoEm        DateTime @default(now()) @map("criado_em")
+  atualizadoEm    DateTime @updatedAt @map("atualizado_em")
+
+  @@index([ativa, distanciaMinima])
+  @@map("faixas_frete")
 }
 
 model ItemCombo {
@@ -183,8 +330,9 @@ model Pedido {
   criadoEm     DateTime @default(now()) @map("criado_em")
   atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
-  usuario     Usuario?     @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
-  itensPedido ItemPedido[]
+  usuario         Usuario?         @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  itensPedido     ItemPedido[]
+  utilizacaoCupom CupomUtilizacao?
 
   @@index([usuarioId])
   @@index([status])

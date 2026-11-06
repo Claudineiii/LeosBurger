@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { type ZodTypeProvider } from "@fastify/type-provider-zod";
 import { z } from "zod";
+import { adicionaisConfiguradosSchema } from "../services/adicionais.js";
 
 const uuidParamsSchema = z.object({
   id: z.string().uuid("id deve ser um UUID válido."),
@@ -62,7 +63,7 @@ const criarItemBodySchema = z
     preco: precoSchema,
     imagemUrl: imagemUrlSchema.optional(),
     ordem: ordemSchema.optional(),
-    adicionais: z.json().nullable().optional(),
+    adicionais: adicionaisConfiguradosSchema.nullable().optional(),
   })
   .strict();
 
@@ -75,7 +76,7 @@ const editarItemBodySchema = z
     imagemUrl: imagemUrlSchema.optional(),
     ordem: ordemSchema.optional(),
     ativo: z.boolean().optional(),
-    adicionais: z.json().nullable().optional(),
+    adicionais: adicionaisConfiguradosSchema.nullable().optional(),
   })
   .strict()
   .refine((body) => Object.keys(body).length > 0, {

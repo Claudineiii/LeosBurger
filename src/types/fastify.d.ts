@@ -7,6 +7,7 @@ declare module "fastify" {
   interface FastifyInstance {
     prisma: PrismaClient;
     autenticar: preHandlerAsyncHookHandler;
+    autenticarOpcional: preHandlerAsyncHookHandler;
     verificarOrigem: preHandlerAsyncHookHandler;
     autorizarAdmin: preHandlerAsyncHookHandler;
   }
