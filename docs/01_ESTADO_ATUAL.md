@@ -2,7 +2,7 @@
 
 ## Resumo executivo
 
-O LEOSBurger é um cardápio digital com pedidos online. A API possui rotas de saúde, catálogo público de categorias, itens e combos, autenticação, perfil, endereço do usuário e administração protegida de categorias, itens e combos. A administração de combos da Sprint 9 lista, consulta, cria e atualiza dados/composição, permite remover associações logicamente e ativar/desativar combos. Checkout e pedidos continuam planejados.
+O LEOSBurger é um cardápio digital com pedidos online. A API possui rotas de saúde, catálogo público de categorias, itens e combos, autenticação, perfil, endereços, administração de catálogo/combos/cupons/faixas de frete, validação geográfica e prévia de checkout. A prévia é somente de leitura. Criação definitiva de pedidos, pagamentos e dashboard continuam planejados.
 
 ## Tecnologias e versões conhecidas
 
@@ -120,8 +120,18 @@ As categorias e os itens possuem endpoints administrativos em `src/routes/catalo
 | POST | `/admin/itens` | ADMIN | Cria item ativo; categoria inválida `400`; duplicidade na categoria `409`. |
 | PATCH | `/admin/itens/:id` | ADMIN | Edita campos permitidos, categoria e/ou `ativo`; `404` se ausente e `409` para duplicidade. |
 
-As respostas administrativas selecionam explicitamente os campos de catálogo; o preço Decimal é serializado como número. `adicionais` é persistido como JSON válido na coluna já existente e só é devolvido na API administrativa. Como o modelo não aprova uma estrutura de domínio para esse JSON, a API não inventa um formato de adicionais nem considera valores enviados ali como fonte confiável de preços no checkout.
+As respostas administrativas selecionam explicitamente os campos de catálogo; o preço Decimal é serializado como número. `adicionais` permanece em JSON e é validado com ID, nome, preço, estado ativo/inativo e quantidade máxima; dados legados incompletos não são publicados nem selecionáveis, e um máximo ausente em registro estruturado assume 1. A API pública retorna somente adicionais ativos. Valores enviados pelo cliente nunca são fonte de preço.
 
 Os testes de integração `tests/api/catalogo-admin.test.ts` exercitam autenticação ausente, papel `CLIENTE`, papel `ADMIN`, origem divergente, CRUD parcial, unicidade, categoria inexistente, preço/entrada inválidos, ativação, listagens públicas/admin, JSON de adicionais e contrato OpenAPI. Os testes usam o banco isolado definido pelo wrapper do projeto e removem apenas fixtures criadas por cada teste. Nenhuma tabela, migration ou dependência foi adicionada.
 
 As Sprints 8 e 9 estão concluídas. Na Sprint 10, o teste focado passou (1 arquivo, 10 testes), a suíte completa passou (12 arquivos, 106 testes), `npm run build` passou e `npx prisma validate` confirmou o schema válido. O wrapper de testes usou o banco isolado `leosburger_test`; não houve alteração de schema nem execução de migration.
+
+## Estado da Sprint 11 — validação local
+
+Implementados: provider Geoapify e contrato substituível; cache HMAC compartilhado, controle global de quota e lock de cache misses no PostgreSQL; referências de endereço hash-only por 30 minutos; classificação conservadora; geocodificação no cadastro/edição de endereço; validação de endereço visitante; adicionais estruturados compatíveis com legado; cupons configuráveis; faixas administrativas; e `POST /checkout/preview` somente leitura.
+
+As migrations `20261103120000_geocodificacao_compartilhada` e `20261104120000_checkout_previo_sprint11` são aditivas e foram aplicadas somente a `leosburger_test`. As 11 CHECK constraints anteriores foram preservadas. O preview usa preço persistido e centavos inteiros, e retorna frete/total `null` quando a entrega não tem coordenadas confirmadas, origem comercial ou faixa válida. Não cria pedido, cobrança nem consumo de cupom.
+
+Verificação local em 04/11/2026: suíte completa passou com 26 arquivos/163 testes. Também passaram `npm run build`, `npx prisma validate`, `npm run db:test:migrate` e `git diff --check`. Nenhuma chamada real ao Geoapify foi feita.
+
+Pendências de produção: confirmar o endereço/coordenadas comerciais, valores comerciais das faixas, critério `full_match` por evidências reais e testes de endereços reais, quota/termos atuais do Geoapify e atribuições no frontend (ainda inexistente), além de rate limit específico aprovado para validação pública de endereço. Não habilitar entrega comercial enquanto origem/faixas confiáveis não estiverem configuradas.
