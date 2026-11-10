@@ -1,55 +1,49 @@
-# Sprint 12 — Criação transacional do pedido
+# Sprint 12 — Criação transacional de pedidos e tracking
 
-**Estado:** Executar após Sprint 11.
+**Estado:** Planejada; depende de contratos/validações da Sprint 11.
 
 ## Objetivo
-Criar pedido e linhas em uma operação consistente, preservando todos os valores históricos.
 
-## Antes de começar
-1. Leia `docs/01_ESTADO_ATUAL.md`, `docs/05_PLANO_DE_APIS.md` e `docs/06_PADRAO_DAS_ROTAS_API.md` quando forem relevantes.
-2. Confira a implementação real e o estado do Git. Se a tarefa já estiver concluída, audite e registre evidências em vez de duplicar código.
-3. Não alterar schema, migrações, dependências ou decisões de negócio sem justificativa e autorização.
+Criar pedido e linhas atomicamente com snapshots imutáveis, idempotência e token seguro de acompanhamento para visitante. A primeira tentativa PIX será ligada ao checkout na Sprint 13; retries não criam novo pedido.
 
-## Passo a passo
-1. Inspecionar restrições CHECK e relações reais do Prisma antes de escrever a criação.
-2. Definir o contrato de criação do pedido e quais dados devem ser enviados pelo cliente; nunca aceitar como confiáveis preços, subtotais, taxa, desconto ou total.
-3. Revalidar no momento da criação os itens, combos, quantidades, adicionais, endereço, pagamento e cupom. Não depender apenas de uma prévia anterior.
-4. Calcular todos os valores no backend e construir o registro histórico do pedido.
-5. Gravar nome/preço histórico, adicionais escolhidos com seus nomes/preços, composição do combo, endereço histórico, distância, taxa, desconto, código do cupom e valores finais conforme aplicável.
-6. Para cada linha de `itens_pedido`, preencher `itemId` OU `comboId`, nunca ambos. Respeitar quantidades e CHECKs.
-7. Gravar status inicial e histórico JSON válido. Usar transação Prisma para gravar pedido e linhas relacionadas atomicamente.
-8. Gerar/obter o número público do pedido respeitando a estratégia já definida no banco, sem criar duplicidades.
-9. Testar pedido de visitante com PIX, pedido autenticado, entrega, retirada, item e combo, falha intermediária/rollback, valores manipulados no payload e preservação histórica.
-10. Executar testes, build e verificar que o banco de testes permanece isolado.
+## Pré-requisitos e migration
 
-## Arquivos envolvidos
-- `Rota de criação do pedido, serviço apenas se necessário, testes de pedido e documentação`
+1. Reinspecionar schema, migrations, CHECK constraints e contratos implementados na Sprint 11.
+2. Preservar subtotal, desconto, taxa, total, método, endereço, cliente, adicionais e composição históricos.
+3. Projetar alteração aditiva em `pedidos` para hash do token de tracking, expiração e revogação. Token plaintext não é persistido.
+4. Persistir idempotency key da criação (e hash do payload canônico ou equivalente) com unicidade e escopo claros.
+5. Manter exatamente os estados operacionais atuais/aprovados, incluindo `PREPARANDO`; não introduzir `EM_PREPARACAO`.
+6. Definir o token válido enquanto o pedido estiver ativo e sua expiração 30 dias após conclusão ou cancelamento; suportar revogação/rotação.
+7. O pedido já persiste `distanciaKm` e `taxaEntrega`, mas não a faixa aplicada. Modelar snapshot da faixa para preservar sua identidade/limites comerciais após edição da configuração.
+8. Recuperação do token usa número do pedido e telefone informado na compra; a emissão de token novo invalida o hash/token anterior. OTP SMS/WhatsApp não faz parte do MVP; registrar como risco residual conhecido e aceito, com rate limiting na Sprint 17.
 
-Os caminhos são indicativos. Confirme a estrutura real antes de criar arquivos e reutilize os existentes quando apropriado.
+## Contrato proposto
 
-## Como validar
-Execute primeiro o teste específico da rota ou funcionalidade, depois a suíte completa e o build. Comandos conhecidos:
+`POST /pedidos` recebe a intenção de checkout validada: linhas, adicionais/quantidades, modalidade, referência temporária protegida de endereço visitante ou endereço próprio com coordenadas válidas quando for entrega, método e código do cupom. Backend revalida todos os dados e recalcula no momento da gravação. Visitante pode escolher ENTREGA ou RETIRADA sem conta; a geocodificação ocorre previamente, nunca na criação final nem no pagamento. Resposta `201` contém pedido/snapshot público; para visitante entrega token aleatório na criação e instrui a guardá-lo. Se a resposta se perder, recuperar token via número+telefone; a rotação invalida o anterior. Repetição idempotente retorna o mesmo recurso. Na Sprint 13, o fluxo também inicia a cobrança PIX inicial e inclui seu estado público; falha do provedor não duplica o pedido.
 
-```bash
-npm test -- --run
-npm run build
-git diff --check
-```
+Se o cliente alterar produtos, adicionais, endereço, cupom ou modalidade após criar o pedido, não editar/reutilizar o snapshot: encerrar pedido antigo pelas regras e abrir novo pedido. Método financeiro poderá ser tentado novamente conforme Sprint 13, sem duplicar o pedido.
 
-Confira `package.json` antes de usar um comando específico de teste. Não contorne a proteção do banco de testes.
+## Arquivos
 
-## Critérios de conclusão
-- [ ] Pedido e linhas são criados atomicamente; valores recalculados; histórico preservado; XOR item/combo respeitado; falhas não deixam pedido parcial.
+- Existentes: `src/app.ts`, `src/plugins/prisma.ts`, rotas de catálogo/endereços, `prisma/schema.prisma`, migrations, `tests/api/`, `tests/banco/integridade.test.ts`.
+- Planejados: `src/routes/pedidos.ts`, `src/services/checkout.ts` somente se compartilhamento justificar, migration aditiva, `tests/api/pedidos.test.ts`.
+- A tabela `tentativas_pagamento` é criada/planejada na Sprint 13; não duplicar colunas de tentativa em `Pedido`.
 
-## O que esta sprint ensina
-Transações Prisma, consistência, dados históricos e restrições do banco.
+## Passos executáveis
 
-## Delegação opcional ao agente de código
-Se o usuário decidir delegar, o agente deve inspecionar o estado real, implementar o escopo completo, executar os testes e o build, revisar o diff e atualizar a documentação. Não deve ampliar o escopo nem alterar decisões aprovadas.
+1. Definir Zod estrito, XOR item/combo e `Idempotency-Key`; adicional recebe ID e quantidade; não aceitar valores financeiros/autorização do frontend.
+2. Buscar preço, adicionais ativos e limites, combo, elegibilidade/mínimo do cupom, faixa de frete e identidade oficiais.
+3. Exigir coordenadas válidas para ENTREGA; receber e validar a referência temporária protegida do visitante ou endereço próprio validado. Não chamar geocoder na criação final nem aceitar coordenadas/correção manual de ponto nessa etapa. Visitante sem referência válida para entrega ainda pode escolher retirada.
+4. Preparar token criptograficamente aleatório; persistir apenas hash, validade enquanto pedido ativo, expiração 30 dias após conclusão ou cancelamento e estado de revogação; excluir plaintext de logs. Rotação por recuperação invalida imediatamente o anterior.
+5. Em transação, persistir pedido, linhas/snapshots, histórico operacional inicial e idempotência; garantir rollback total.
+6. Persistir distância, faixa aplicada/limites e valor do frete; código e desconto efetivamente aplicados; snapshots de adicionais incluem nome/preço/quantidade.
+7. Garantir repetição de chave/payload equivalente retorna o mesmo pedido; chave incompatível `409`; concorrência não cria duplicatas. Resposta inicial perdida é resolvida pelo fluxo de recuperação do token.
+8. Não manter transação aberta durante chamadas externas; revalidar dados financeiros no write.
+9. Não criar refund/tentativas PIX aqui; Sprint 13 trata pagamento e Sprint 15 seus reembolsos.
+10. Criar e validar migration incremental em banco isolado; preservar constraints existentes.
 
-## Registro ao concluir
-- Resultado dos testes:
-- Resultado do build:
-- Arquivos alterados:
-- Documentação atualizada:
-- Pendências ou riscos:
+## Testes e aceite
+
+`tests/api/pedidos.test.ts`: visitante com entrega/retirada sem conta e PIX exclusivo; referência de endereço válida/expirada/adulterada; método proibido; snapshot completo incluindo endereço, adicionais/quantidade/faixa; falha entre pedido/linha faz rollback; item/preço/status mudou entre prévia e criação; retry e chave incompatível; concorrência; token aleatório, hash-only, válido enquanto ativo e por 30 dias após conclusão ou cancelamento, revogação e rotação por número+telefone; token/segredos ausentes de logs; token anterior inválido após rotação; alteração da compra gera novo pedido; migrations e constraints.
+
+Aceite: nenhuma linha parcial/duplicada; snapshots intactos, incluindo endereço, faixa de frete e quantidades de adicionais; token plaintext nunca persistido/logado; rotação segura invalidando o token antigo; validade enquanto ativo e limite de 30 dias após conclusão ou cancelamento; visitante consegue solicitar entrega/retirada sem conta, com endereço validado previamente; testes de integração/build/Prisma passam.

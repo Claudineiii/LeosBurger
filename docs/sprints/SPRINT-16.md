@@ -1,53 +1,42 @@
 # Sprint 16 — Dashboard e fechamentos
 
-**Estado:** Executar depois que criação, pagamentos simulados e status estiverem funcionando.
+**Estado:** Planejada; depende de pedidos, tentativas, cancelamentos e reembolsos consistentes.
 
-## Objetivo
-Calcular indicadores diários, mensais, semestrais e anuais separando status de pedido e situação/valores de pagamento.
+## Objetivo e contrato
 
-## Antes de começar
-1. Leia `docs/01_ESTADO_ATUAL.md`, `docs/05_PLANO_DE_APIS.md` e `docs/06_PADRAO_DAS_ROTAS_API.md` quando forem relevantes.
-2. Confira a implementação real e o estado do Git. Se a tarefa já estiver concluída, audite e registre evidências em vez de duplicar código.
-3. Não alterar schema, migrações, dependências ou decisões de negócio sem justificativa e autorização.
+Proposta `GET /admin/dashboard?periodo=dia|mes|semestre|ano&referencia=...`, ADMIN-only. As fronteiras de calendário são `America/Sao_Paulo`; timestamps persistidos em UTC por convenção da aplicação (as colunas atuais são `TIMESTAMP(3)` sem fuso). Agregações ficam no PostgreSQL.
 
-## Passo a passo
-1. Consultar a especificação original e os campos existentes para definir a data de referência dos agrupamentos. Se a regra não estiver documentada, apresentar alternativas antes de implementar.
-2. Definir os indicadores exatamente conforme o escopo aprovado. Não incluir PDF, metas, estoque ou indicadores não previstos sem autorização.
-3. Separar quantidade/valor por status do pedido de situação/valor de pagamento. Não chamar pagamento simulado de dinheiro recebido.
-4. Definir o tratamento de pedidos cancelados, pedidos ainda pendentes e pagamentos simulados para evitar somas enganosas.
-5. Implementar consultas agregadas com Prisma ou SQL somente se necessário e justificado. Não criar tabela de dashboard.
-6. Validar limites de período, virada de mês/ano e fuso horário utilizado pela aplicação.
-7. Testar período sem pedidos, vários status, cancelamentos, pedidos com pagamento simulado, limites de datas e totais.
-8. Executar testes, build e documentar fórmulas, data de referência e limitações dos números.
+`semestre` é semestre civil: janeiro a junho ou julho a dezembro. Construir limites no calendário `America/Sao_Paulo` e converter para instantes UTC antes da consulta.
 
-## Arquivos envolvidos
-- `Rotas/consultas de dashboard, testes e documentação`
+## Métricas separadas
 
-Os caminhos são indicativos. Confirme a estrutura real antes de criar arquivos e reutilize os existentes quando apropriado.
+- **Pedidos/bruto:** valores e contagens por data de criação, status operacional, modalidade e método escolhido; cancelamentos identificados em separado.
+- **Recebimentos:** somar apenas tentativas efetivamente aprovadas/confirmadas, usando data de confirmação. Nunca somar cada tentativa quando um pedido tiver retries; contabilizar pagamento único.
+- **Reembolsos:** valor só aparece como reembolsado na confirmação efetiva; reembolso pendente permanece em pendente. Separar PIX e devolução manual presencial conforme dados auditados.
+- **Líquido/resultado:** somente fórmula explicitamente documentada derivada de valores recebidos menos reembolsos confirmados. Não subtrair cancelamento que não teve reembolso; não tratar reembolso pendente como concluído.
+- Pagamento simulado não movimenta dinheiro. Exibir estado/origem de simulação claramente; nunca rotular como recebimento real.
 
-## Como validar
-Execute primeiro o teste específico da rota ou funcionalidade, depois a suíte completa e o build. Comandos conhecidos:
+Não é relatório contábil nem PDF. Não adicionar tabela de dashboard/cache sem medição e decisão.
 
-```bash
-npm test -- --run
-npm run build
-git diff --check
-```
+## Arquivos
 
-Confira `package.json` antes de usar um comando específico de teste. Não contorne a proteção do banco de testes.
+- Existentes: `src/app.ts`, `src/plugins/prisma.ts`, `prisma/schema.prisma`, migrations.
+- Planejados: `src/routes/dashboard.ts`, `tests/api/dashboard.test.ts`; serviço só se lógica compartilhar regra complexa.
+- Mudanças de índices dependem de análise de consultas e evidência de desempenho.
 
-## Critérios de conclusão
-- [ ] Indicadores respeitam período e status; pagamento simulado não é apresentado como recebimento real; nenhum módulo ou tabela extra foi criado.
+## Passos
 
-## O que esta sprint ensina
-Agregações, filtros temporais, métricas consistentes e interpretação de pagamento simulado.
+1. Definir schemas de query/resposta e fórmulas com timezone no contrato.
+2. Construir intervalos de período conforme calendário São Paulo, converter bounds para UTC e testar limites civis (inclusive/exclusivo), incluindo troca de semestre.
+3. Agregar no PostgreSQL por timestamps corretos: pedido criado, pagamento aprovado, reembolso confirmado.
+4. Separar status/modalidade/método e impedir inflação por joins de itens/tentativas.
+5. Incluir bruto, recebido, pendente e reembolso confirmado em dimensões diferentes.
+6. Usar `select`/agregações, evitar N+1 e buscar somente métricas necessárias.
+7. Medir latência HTTP/SQL, quantidade de consultas, conexões e consumo antes de criar índices/otimizações; executar `EXPLAIN ANALYZE` em query crítica.
+8. Documentar o simulador e limitações de dados.
 
-## Delegação opcional ao agente de código
-Se o usuário decidir delegar, o agente deve inspecionar o estado real, implementar o escopo completo, executar os testes e o build, revisar o diff e atualizar a documentação. Não deve ampliar o escopo nem alterar decisões aprovadas.
+## Testes e critérios de aceite
 
-## Registro ao concluir
-- Resultado dos testes:
-- Resultado do build:
-- Arquivos alterados:
-- Documentação atualizada:
-- Pendências ou riscos:
+`tests/api/dashboard.test.ts`: ADMIN/CLIENTE, dia/mês/semestre civil/ano em `America/Sao_Paulo`, bounds UTC, 30 de junho/1 de julho, viradas de ano, ano bissexto, sem dados, cancelamento, tentativas múltiplas (máximo duas PIX), pagamento confirmado/pendente, registros múltiplos de reembolso e pendente/confirmado, presencial/manual vs PIX, taxa/desconto e query que não multiplica valores.
+
+Aceite: bruto/recebido/reembolsado separados e reproduzíveis; calendário São Paulo; valores simulados rotulados; agregações no DB; sem PDF/cache; testes e build passam.

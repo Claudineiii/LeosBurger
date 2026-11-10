@@ -1,54 +1,36 @@
-# Sprint 18 — Auditoria final e documentação
+# Sprint 18 — Preparação para produção e futura integração PIX
 
-**Estado:** Última sprint do backend.
+**Estado:** Planejada; não é integração de provedor nem deploy.
 
 ## Objetivo
-Confirmar que o backend está consistente, testado e documentado antes da integração final/deploy.
 
-## Antes de começar
-1. Leia `docs/01_ESTADO_ATUAL.md`, `docs/05_PLANO_DE_APIS.md` e `docs/06_PADRAO_DAS_ROTAS_API.md` quando forem relevantes.
-2. Confira a implementação real e o estado do Git. Se a tarefa já estiver concluída, audite e registre evidências em vez de duplicar código.
-3. Não alterar schema, migrações, dependências ou decisões de negócio sem justificativa e autorização.
+Conferir segurança operacional, segredos, Redis, backup/recuperação, monitoramento e rollout. Documentar critérios para escolher/adicionar provedor PIX real posteriormente sem selecioná-lo agora.
 
-## Passo a passo
-1. Conferir o estado do Git, arquivos modificados e commits pendentes. Não sobrescrever trabalho não relacionado.
-2. Executar build, suíte completa de testes e `git diff --check`; usar scripts existentes no `package.json`.
-3. Comparar cada rota real com o OpenAPI e corrigir divergências de contratos, respostas e erros.
-4. Revisar `docs/01_ESTADO_ATUAL.md`, `docs/05_PLANO_DE_APIS.md`, `docs/07_TESTES.md` e `docs/06_PADRAO_DAS_ROTAS_API.md` conforme a estrutura real.
-5. Confirmar que README e documentação de setup descrevem comandos, variáveis necessárias e dependências reais, sem segredos.
-6. Verificar que o modelo de oito tabelas e migrações não sofreu alterações não aprovadas.
-7. Verificar as regras fixas: JWT sem revogação; prazos de sessão; estados e fluxos; visitante PIX; taxas de entrega; adicionais JSON; cupons sem tabela; sem exclusão física; sem gateway real.
-8. Confirmar que cada sprint concluída tem evidência: testes, build, arquivos modificados e documentação atualizada.
-9. Gerar um resumo final com concluído, pendente, riscos conhecidos e próximos passos. Não declarar produção pronta se ainda faltarem integração frontend/backend ou configuração de deploy.
+## Pré-requisitos
 
-## Arquivos envolvidos
-- `Documentação existente e arquivos de estado; não criar documentos redundantes sem necessidade`
+- Sprints 11–17 concluídas e evidenciadas.
+- Confirmar evidências das Sprints 11–17: Geoapify conforme quota/termos/atribuições atuais, fluxo de endereço visitante sem conta e endereço pendente não entregável; faixas sem valores comerciais no seed; token hash-only válido durante pedido ativo e por 30 dias após conclusão/cancelamento, rotação e permissões; duas tentativas PIX no total, cada uma com cinco minutos e cancelamento após expiração da segunda; reembolso individual/manual; estados operacionais exatos; semestre civil; limites aprovados de rate limit.
+- Confirmar frontend e plataforma real de hospedagem; não há caminho de frontend/deploy a presumir no repositório observado.
+- Registrar risco residual aceito de recuperação de token por número do pedido + telefone, sem OTP. A Sprint 17 pode avaliar reforço futuro, não implementá-lo como requisito deste MVP.
 
-Os caminhos são indicativos. Confirme a estrutura real antes de criar arquivos e reutilize os existentes quando apropriado.
+## Checklist executável
 
-## Como validar
-Execute primeiro o teste específico da rota ou funcionalidade, depois a suíte completa e o build. Comandos conhecidos:
+1. Conferir branch, diff, README, scripts, workflows e estrutura real; não alterar CI sem problema concreto.
+2. Inventariar nomes/propósito de variáveis sem imprimir valores; manter segredos em secret manager/ambiente e verificar redaction de logs.
+3. Garantir HTTPS, `FRONTEND_ORIGIN` exata, CORS restrito, JWT forte, simulador desabilitado em produção, migrations seguras e erros sem dados internos.
+4. Redis compartilhado e protegido para rate limiting; limites por operação foram propostos com justificativa e aprovados antes de produção. Operações sensíveis que alteram estado falham fechadas se Redis cair; consulta GET por token permanece disponível e protegida com fallback degradado em memória por processo, identificado por derivação do token e IP. Redis não é cache nem requisito de desenvolvimento local.
+5. Backup/restauração testada, PITR/retention se oferecidos pela infraestrutura real, monitoramento/alertas, resposta a incidentes, logs/privacidade e rollback.
+6. Definir critérios vendor-neutral de seleção de PIX: cobertura API, autenticação/assinatura, idempotência/eventos, sandbox, suporte, custos/settlement e processo de homologação. Não escolher Asaas/Mercado Pago/PagBank agora.
+7. Só quando fornecedor for aprovado, projetar adaptação do contrato, identificador externo/event ID, assinatura, rotação de segredo, retries, timeout, conciliação, confirmação tardia e reembolso. Não criar webhook vazio, campos/credenciais fictícios ou tabela/coluna prematura.
+8. Checklist futuro inclui eventos fora de ordem/duplicados, assinatura inválida, valor/moeda incompatíveis, pagamento tardio e pedido cancelado/outra tentativa paga; reconhecer e auditar o recebimento, nunca ignorar. Nenhum reembolso ocorre automaticamente por pagamento duplicado; procedimento manual ADMIN.
+9. Revisar docs e README para não afirmar produção pronta ou pagamento real antes de evidência; preparar rollout/rollback sem executar deploy nesta sprint documental.
 
-```bash
-npm test -- --run
-npm run build
-git diff --check
-```
+## Arquivos e responsabilidades
 
-Confira `package.json` antes de usar um comando específico de teste. Não contorne a proteção do banco de testes.
+- Revisar documentos existentes (`README.md`, `docs/01_ESTADO_ATUAL.md`, arquitetura, regras, modelo, plano de APIs, testes e Sprints) e configurações realmente presentes.
+- Backend define adaptador, proteção e contratos; frontend envia apenas dados necessários e apresenta estados oficiais, sem segredos ou confirmação por conta própria.
+- Não criar documentação duplicada ou infraestrutura fictícia.
 
-## Critérios de conclusão
-- [ ] Código, testes, OpenAPI e docs estão alinhados; estado do Git é conhecido; nenhuma decisão aprovada foi alterada; pendências são explícitas.
+## Critérios de aceite
 
-## O que esta sprint ensina
-Auditoria de entrega, documentação como fonte de continuidade e rastreabilidade.
-
-## Delegação opcional ao agente de código
-Se o usuário decidir delegar, o agente deve inspecionar o estado real, implementar o escopo completo, executar os testes e o build, revisar o diff e atualizar a documentação. Não deve ampliar o escopo nem alterar decisões aprovadas.
-
-## Registro ao concluir
-- Resultado dos testes:
-- Resultado do build:
-- Arquivos alterados:
-- Documentação atualizada:
-- Pendências ou riscos:
+Checklist revisado contra sistema/configuração real; secrets não versionados/logados; política do Geoapify, limites aprovados e Redis fail-closed verificados; consulta de token disponível com Redis indisponível; restore/monitoramento/rollback documentados; risco residual sem OTP explícito; escolha de provedor PIX e integração real explicitamente futuras. Não marcar gateway, homologação ou deploy como concluído sem evidências.
