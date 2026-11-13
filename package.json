@@ -9,9 +9,9 @@
     "test:watch": "tsx scripts/test-database.ts vitest",
     "db:test:migrate": "tsx scripts/test-database.ts migrate",
     "postinstall": "prisma skills sync || exit 0",
-    "dev": "tsx watch src/server.ts",
+    "dev": "node --env-file=.env --import tsx --watch src/server.ts",
     "build": "tsc --noEmit",
-    "start": "tsx src/server.ts"
+    "start": "node --env-file=.env --import tsx src/server.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

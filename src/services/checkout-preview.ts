@@ -106,9 +106,13 @@ function serializarEndereco(
 export async function gerarPreviaCheckout(
   request: FastifyRequest,
   dadosRecebidos: unknown,
+  opcoes: {
+    transacao?: Prisma.TransactionClient;
+    usuario?: FastifyRequest["usuarioAutenticado"];
+  } = {},
 ) {
   const dados = checkoutPreviewBodySchema.parse(dadosRecebidos);
-  const usuario = request.usuarioAutenticado;
+  const usuario = opcoes.usuario ?? request.usuarioAutenticado;
   if (!usuario && dados.metodoPagamento !== MetodoPagamento.PIX) {
     throw new Error("PAGAMENTO_VISITANTE_INVALIDO");
   }
@@ -130,8 +134,7 @@ export async function gerarPreviaCheckout(
     throw new Error("REFERENCIA_ENDERECO_OBRIGATORIA");
   }
 
-  return request.server.prisma.$transaction(
-    async (tx) => {
+  const calcular = async (tx: Prisma.TransactionClient) => {
       const idsItem = [...new Set(
         dados.itens.flatMap((linha) => linha.itemId ? [linha.itemId] : []),
       )];
@@ -341,9 +344,12 @@ export async function gerarPreviaCheckout(
         total: formatarCentavos(total),
         endereco: serializarEndereco(endereco),
       };
-    },
-    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
-  );
+  };
+  return opcoes.transacao
+    ? calcular(opcoes.transacao)
+    : request.server.prisma.$transaction(calcular, {
+        isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
+      });
 }
 
 async function obterEndereco(

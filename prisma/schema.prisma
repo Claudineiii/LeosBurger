@@ -302,6 +302,14 @@ model Pedido {
   tipoEntrega TipoEntrega  @map("tipo_entrega")
   status      StatusPedido @default(PENDENTE)
 
+  idempotencyKey         String? @unique @map("idempotency_key") @db.Uuid
+  idempotencyPayloadHash String? @map("idempotency_payload_hash") @db.Char(64)
+  idempotencyScopeHash   String? @map("idempotency_scope_hash") @db.Char(64)
+
+  tokenAcompanhamentoHash       String?   @map("token_acompanhamento_hash") @db.Char(64)
+  tokenAcompanhamentoRevogadoEm DateTime? @map("token_acompanhamento_revogado_em") @db.Timestamptz(3)
+  tokenAcompanhamentoExpiraEm   DateTime? @map("token_acompanhamento_expira_em") @db.Timestamptz(3)
+
   nomeClienteHistorico     String @map("nome_cliente_historico") @db.VarChar(100)
   telefoneClienteHistorico String @map("telefone_cliente_historico") @db.VarChar(20)
 
@@ -314,7 +322,10 @@ model Pedido {
   estadoHistorico      String? @map("estado_historico") @db.VarChar(2)
   referenciaHistorico  String? @map("referencia_historico") @db.VarChar(150)
 
-  distanciaKm Decimal? @map("distancia_km") @db.Decimal(6, 2)
+  distanciaKm                        Decimal? @map("distancia_km") @db.Decimal(6, 2)
+  faixaFreteIdHistorico              String?  @map("faixa_frete_id_historico") @db.VarChar(36)
+  faixaFreteDistanciaMinimaHistorica Decimal? @map("faixa_frete_distancia_minima_historica") @db.Decimal(5, 2)
+  faixaFreteDistanciaMaximaHistorica Decimal? @map("faixa_frete_distancia_maxima_historica") @db.Decimal(5, 2)
 
   subtotal    Decimal @db.Decimal(10, 2)
   desconto    Decimal @default(0) @db.Decimal(10, 2)
@@ -323,6 +334,7 @@ model Pedido {
 
   metodoPagamento MetodoPagamento @map("metodo_pagamento")
   codigoCupom     String?         @map("codigo_cupom") @db.VarChar(50)
+  cupomHistorico  Json?           @map("cupom_historico")
   observacao      String?         @db.VarChar(500)
 
   historicoStatus Json @default("[]") @map("historico_status")

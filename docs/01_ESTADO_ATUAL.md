@@ -2,7 +2,7 @@
 
 ## Resumo executivo
 
-O LEOSBurger é um cardápio digital com pedidos online. A API possui rotas de saúde, catálogo público de categorias, itens e combos, autenticação, perfil, endereços, administração de catálogo/combos/cupons/faixas de frete, validação geográfica e prévia de checkout. A prévia é somente de leitura. Criação definitiva de pedidos, pagamentos e dashboard continuam planejados.
+O LEOSBurger é um cardápio digital com pedidos online. A API possui rotas de saúde, catálogo público de categorias, itens e combos, autenticação, perfil, endereços, administração de catálogo/combos/cupons/faixas de frete, validação geográfica, prévia de checkout e criação transacional de pedidos. Cobranças/pagamentos e dashboard continuam planejados.
 
 ## Tecnologias e versões conhecidas
 
@@ -40,6 +40,7 @@ C:/LeosBurger/
 │   │   └── autenticacao.ts
 │   ├── routes/
 │   │   ├── health.ts
+│   │   ├── pedidos.ts
 │   │   ├── categorias.ts
 │   │   ├── itens.ts
 │   │   ├── combos.ts
@@ -47,10 +48,13 @@ C:/LeosBurger/
 │   │   ├── catalogo-admin.ts
 │   │   ├── combos-admin.ts
 │   │   └── enderecos.ts
+│   ├── services/
+│   │   └── pedidos.ts
 │   └── types/
 │       └── fastify.d.ts
 ├── tests/
 │   ├── api/
+│   │   ├── pedidos.test.ts
 │   │   ├── categorias.test.ts
 │   │   ├── itens.test.ts
 │   │   ├── combos.test.ts
@@ -135,3 +139,13 @@ As migrations `20261103120000_geocodificacao_compartilhada` e `20261104120000_ch
 Verificação local em 04/11/2026: suíte completa passou com 26 arquivos/163 testes. Também passaram `npm run build`, `npx prisma validate`, `npm run db:test:migrate` e `git diff --check`. Nenhuma chamada real ao Geoapify foi feita.
 
 Pendências de produção: confirmar o endereço/coordenadas comerciais, valores comerciais das faixas, critério `full_match` por evidências reais e testes de endereços reais, quota/termos atuais do Geoapify e atribuições no frontend (ainda inexistente), além de rate limit específico aprovado para validação pública de endereço. Não habilitar entrega comercial enquanto origem/faixas confiáveis não estiverem configuradas.
+
+## Estado da Sprint 12 — pedidos e tracking
+
+Implementados `POST /pedidos` e `POST /pedidos/acompanhamento/recuperar`. A criação revalida o checkout oficial dentro de transação serializável, persiste `PENDENTE`, linhas, adicionais/composição, endereço, frete/faixa, cupom/histórico, uso do cupom e idempotência atomicamente. Visitante usa somente PIX e recebe token aleatório; o banco guarda somente SHA-256. Cliente autenticado pode usar os métodos previstos; ADMIN não cria pedido.
+
+A chave UUIDv4 é única e mantida pela vida do pedido; o escopo é hash do usuário autenticado ou do telefone normalizado do visitante, e o payload canônico também é armazenado somente como hash. Repetição idêntica retorna `200` sem reemitir token; payload ou escopo divergente retorna `409`. A rotação compara número e telefone sem diferenciar pontuação, troca o hash dentro de transação e responde genericamente em caso de falha.
+
+A migration `20261105120000_pedidos_idempotencia_tracking` é aditiva, não cria tabela e preserva as 11 CHECK constraints anteriores; foi aplicada somente ao banco isolado `leosburger_test`. Não há cobrança PIX, simulador, tentativa de pagamento, chamada Geoapify, frontend nem fluxo de mudança/cancelamento de status nesta sprint. A validade terminal de 30 dias está representada e aplicada pelo campo de expiração, mas o preenchimento automático desse campo ao concluir/cancelar depende do fluxo de transição de status futuro.
+
+Os testes de integração novos cobrem snapshots de itens/adicionais, combo/cupom, faixa/endereço, idempotência concorrente e conflitante, método por perfil, bloqueio de ADMIN e recuperação/rotação/expiração. Validação local em 13/11/2026: `npm test` passou com 27 arquivos/169 testes (163 legados + 6 novos); `npm run build`, `npx prisma validate`, `npm run db:test:migrate` e `git diff --check` também passaram. A migration foi aplicada somente em `leosburger_test`.

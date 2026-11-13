@@ -1,6 +1,6 @@
 # Sprint 12 — Criação transacional de pedidos e tracking
 
-**Estado:** Planejada; depende de contratos/validações da Sprint 11.
+**Estado:** Implementada e validada localmente.
 
 ## Objetivo
 
@@ -47,3 +47,20 @@ Se o cliente alterar produtos, adicionais, endereço, cupom ou modalidade após 
 `tests/api/pedidos.test.ts`: visitante com entrega/retirada sem conta e PIX exclusivo; referência de endereço válida/expirada/adulterada; método proibido; snapshot completo incluindo endereço, adicionais/quantidade/faixa; falha entre pedido/linha faz rollback; item/preço/status mudou entre prévia e criação; retry e chave incompatível; concorrência; token aleatório, hash-only, válido enquanto ativo e por 30 dias após conclusão ou cancelamento, revogação e rotação por número+telefone; token/segredos ausentes de logs; token anterior inválido após rotação; alteração da compra gera novo pedido; migrations e constraints.
 
 Aceite: nenhuma linha parcial/duplicada; snapshots intactos, incluindo endereço, faixa de frete e quantidades de adicionais; token plaintext nunca persistido/logado; rotação segura invalidando o token antigo; validade enquanto ativo e limite de 30 dias após conclusão ou cancelamento; visitante consegue solicitar entrega/retirada sem conta, com endereço validado previamente; testes de integração/build/Prisma passam.
+
+## Implementação da Sprint 12
+
+- `POST /pedidos` foi registrado em `src/routes/pedidos.ts`; exige chave UUIDv4 e corpo Zod estrito. Retorna `201` na criação e `200` no replay idêntico; payload ou escopo diferente com a mesma chave retorna `409`.
+- `src/services/pedidos.ts` executa revalidação e criação em transação serializável. Reutiliza a prévia/calculadora da Sprint 11 e persiste pedido, linhas, histórico inicial, dados históricos de cliente/endereço, adicionais, composição do combo, valores, faixa, regras do cupom e uso do cupom na mesma transação.
+- A migration aditiva `20261105120000_pedidos_idempotencia_tracking` registra chave única, hashes do payload/escopo, hash do token, expiração/revogação, snapshot da faixa e regras do cupom. Não cria tabela e não altera/remova as 11 CHECK constraints anteriores.
+- Visitante informa nome/telefone e só pode usar PIX; autenticado usa os dados da conta e os métodos permitidos; ADMIN recebe `403`. A criação não cobra PIX, não chama Geoapify e não cria tentativas.
+- `POST /pedidos/acompanhamento/recuperar` compara número e telefone normalizado, responde com `404` genérico quando inválido e rotaciona o hash em transação com bloqueio da linha. O token plaintext só é retornado ao criar/rotacionar; replay idempotente não o reemite.
+- A chave de idempotência é retida enquanto o pedido existir. Não há rate limiting no endpoint de recuperação nesta sprint. O vencimento é respeitado pela recuperação, mas a gravação automática do prazo de 30 dias após transição para `CONCLUIDO`/`CANCELADO` dependerá do fluxo administrativo futuro de status.
+
+## Validação local
+
+- `npm test`: 27 arquivos, 169 testes aprovados (163 legados e 6 novos).
+- `npm run build`: aprovado.
+- `npx prisma validate`: schema válido com Prisma 6.19.3.
+- `npm run db:test:migrate`: migration aplicada somente em `leosburger_test`.
+- `git diff --check`: aprovado; nenhum arquivo foi colocado em stage e não houve commit/push.

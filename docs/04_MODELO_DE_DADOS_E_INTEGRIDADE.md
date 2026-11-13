@@ -4,9 +4,9 @@
 
 O schema real está em `prisma/schema.prisma` e atualmente define 17 modelos/tabelas, incluindo as estruturas implementadas na Sprint 11. Essa contagem descreve o estado atual, não é um limite arquitetural.
 
-As tabelas de cupons, elegibilidade, usos de cupom, faixas de frete, referências temporárias, cache e controle Geoapify foram criadas por migrations incrementais. Tentativas de pagamento e reembolsos seguem conceitualmente aprovados, mas ainda não existem no banco.
+As tabelas de cupons, elegibilidade, usos de cupom, faixas de frete, referências temporárias, cache e controle Geoapify foram criadas por migrations incrementais. A Sprint 12 acrescentou somente colunas e constraints aditivas em `pedidos`; tentativas de pagamento e reembolsos seguem conceitualmente aprovados, mas ainda não existem no banco.
 
-Uma nova tabela é apropriada quando representar entidade/responsabilidade persistente e garantir integridade referencial. A migration da Sprint 11 é aditiva e não remove nem altera as 11 CHECK constraints da migration definitiva. Foi aplicada somente ao banco isolado `leosburger_test`; não foi aplicada ao banco de desenvolvimento.
+Uma nova tabela é apropriada quando representar entidade/responsabilidade persistente e garantir integridade referencial. As migrations da Sprint 11 e da Sprint 12 são aditivas e não removem nem alteram as 11 CHECK constraints da migration definitiva. As migrations novas foram aplicadas somente ao banco isolado `leosburger_test`; não foram aplicadas ao banco de desenvolvimento.
 
 ## 2. Modelos existentes
 
@@ -18,7 +18,7 @@ Uma nova tabela é apropriada quando representar entidade/responsabilidade persi
 | `itens` | Itens, preços, estado e coluna JSON `adicionais`. |
 | `combos` | Combos e preços definidos pelo proprietário. |
 | `itens_combo` | Composição atual/removida logicamente dos combos. |
-| `pedidos` | Compra, snapshot de cliente/endereço, modalidade, preços/taxas/cupom, método, status operacional e histórico JSON. |
+| `pedidos` | Compra, snapshots de cliente/endereço/faixa/cupom, modalidade, valores, método, status/histórico, idempotência e hash/validade/revogação do tracking visitante. |
 | `itens_pedido` | Linhas históricas de item ou combo, adicionais e composição histórica JSON. |
 
 O enum atual `StatusPedido` usa `PREPARANDO` e esse nome está aprovado; não renomear para `EM_PREPARACAO`. O enum `MetodoPagamento` existente tem `PIX`, `CREDITO`, `DEBITO`, `DINHEIRO`; cartão permanece exclusivamente presencial.
@@ -37,7 +37,7 @@ As estruturas abaixo já existem no schema e em migrations. As tentativas de pag
 | `cupons_itens` | Relação N:N com itens elegíveis, FKs e unicidade por par. |
 | `cupons_combos` | Relação N:N com combos elegíveis, FKs e unicidade por par. |
 | `faixas_frete` | Configuração administrativa de limites/valores e validação de cobertura do serviço até 6 km. |
-| `cupons_utilizacoes` | Contagem persistida de aplicações de cupom, com limite opcional; a criação do pedido ainda não registra uso. |
+| `cupons_utilizacoes` | Contagem persistida de aplicações de cupom, com limite opcional; uma utilização é inserida atomicamente com o pedido. |
 | `referencias_endereco` | Snapshot mínimo de endereço e validação associado somente ao hash do token temporário de 30 minutos. |
 | `cache_geoapify` | Resultado normalizado com chave HMAC, sem consulta textual em claro e com expiração. |
 | `controle_geoapify` | Reserva agregada de quota e intervalo mínimo entre chamadas externas. |
@@ -116,13 +116,13 @@ Contrato de integração independente do fornecedor deve existir desde o início
 
 `Pedido` continua sendo snapshot imutável da compra. Adições prováveis a avaliar:
 
-- hash do token de visitante, expiração e revogação; nunca texto puro nem logado. É válido enquanto o pedido estiver ativo; após conclusão ou cancelamento, expira 30 dias depois do respectivo evento. Recuperação exige número do pedido e telefone da compra, emite novo token e invalida o anterior. OTP não é usado no MVP; o risco de recuperação por dois dados é conhecido e aceito;
-- mecanismo persistido de idempotência da criação, incluindo escopo da chave e hash do payload (ou alternativa equivalente) para distinguir replay idêntico de reutilização incompatível;
-- snapshot explícito da faixa de frete aplicada. O pedido já contém distância e taxa, mas não a identificação/limites da faixa;
+- hash SHA-256 do token de visitante, expiração e revogação; nunca texto puro nem logado. É válido enquanto o pedido estiver ativo; após conclusão ou cancelamento, expira 30 dias depois do respectivo evento. Recuperação exige número do pedido e telefone da compra, emite novo token e invalida o anterior. OTP não é usado no MVP; o risco de recuperação por dois dados é conhecido e aceito;
+- idempotency key UUID globalmente única, hash do escopo (identificador de CLIENTE ou telefone normalizado de visitante) e hash do payload canônico para distinguir replay idêntico de reutilização incompatível; a chave permanece enquanto o pedido existir;
+- snapshot explícito da faixa de frete aplicada. O pedido já contém distância e taxa; os campos novos registram ID e limites da faixa;
 - referência ao pedido anterior somente se necessária para auditar nova compra após mudança de carrinho;
 - situação financeira atual se necessária à consulta, mantendo tentativas como histórico financeiro;
 
-O schema já contém snapshots de nome/telefone/endereço do cliente, valores do pedido, distância, taxa, código do cupom, nome/preço da linha, adicionais e composição histórica do combo. Essas colunas não devem ser descritas como ausentes; a faixa de frete é a lacuna histórica identificada acima.
+O schema contém snapshots de nome/telefone/endereço do cliente, valores do pedido, distância, taxa, código do cupom, nome/preço da linha, adicionais e composição histórica do combo. A migration `20261105120000_pedidos_idempotencia_tracking` adicionou campos de idempotência, token e faixa, além de `cupom_historico` com as regras e elegibilidade usadas. A criação do pedido registra a utilização de cupom na mesma transação.
 
 Solicitação/decisão de cancelamento registra em evento histórico tipado: motivo, solicitante, data; decisão ADMIN, data, decisão e justificativa quando aplicável; resultado financeiro. Visitante pode solicitar cancelamento usando token válido, mas somente ADMIN decide. Cancelamento e reembolso são independentes.
 
@@ -148,6 +148,6 @@ Decisão técnica da Sprint 11: após a geocodificação anterior ao checkout, o
 
 - Fonte confiável e processo de atualização das coordenadas do restaurante.
 - Configuração e rotação seguras da chave da referência temporária de endereço de visitante.
-- Escopo/retention da chave de idempotência e do hash do payload.
+- Preenchimento de `tokenAcompanhamentoExpiraEm` pelo futuro fluxo administrativo quando o pedido concluir ou cancelar (30 dias após o evento terminal).
 - Dados mínimos de auditoria/evento tardio e quando adicionar identificadores externos.
 - Limites numéricos de rate limiting, que devem ser propostos e aprovados antes de produção; fallback GET durante indisponibilidade Redis em memória por processo é degradado e não distribuído.

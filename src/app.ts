@@ -16,6 +16,7 @@ import { checkoutEnderecoVisitanteRoutes } from "./routes/checkout-endereco-visi
 import { cuponsAdminRoutes } from "./routes/cupons-admin.js";
 import { faixasFreteAdminRoutes } from "./routes/faixas-frete-admin.js";
 import { checkoutPreviewRoutes } from "./routes/checkout-preview.js";
+import { pedidosRoutes } from "./routes/pedidos.js";
 
 export function criarAplicacao() {
   const app = Fastify({
@@ -35,6 +36,7 @@ export function criarAplicacao() {
   app.register(enderecosRoutes);
   app.register(checkoutEnderecoVisitanteRoutes);
   app.register(checkoutPreviewRoutes);
+  app.register(pedidosRoutes);
   app.register(catalogoAdminRoutes);
   app.register(combosAdminRoutes);
   app.register(cuponsAdminRoutes);

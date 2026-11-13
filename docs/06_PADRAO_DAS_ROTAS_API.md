@@ -4,7 +4,7 @@
 
 Este guia registra o que está comprovado na API atual e estabelece um procedimento para implementar e verificar futuras rotas com Fastify, TypeScript, Zod, Prisma, OpenAPI/Scalar e Vitest.
 
-O guia registra as rotas públicas de catálogo, autenticação, perfil, endereços e administração de categorias/itens implementadas. Pedidos continuam fora deste escopo. O código real continua sendo a referência: confira os arquivos antes de reutilizar qualquer exemplo.
+O guia registra as rotas públicas de catálogo, autenticação, perfil, endereços, pedidos e administração implementadas. O código real continua sendo a referência: confira os arquivos antes de reutilizar qualquer exemplo.
 
 ## 2. Pré-requisitos
 
@@ -31,6 +31,9 @@ O guia registra as rotas públicas de catálogo, autenticação, perfil, endere�
 | `src/routes/combos-admin.ts`                  | Define as rotas ADMIN de combos e composição, com preço manual e transações. |
 | `src/routes/auth.ts`                           | Define cadastro, login, logout, consulta e atualização dos dados públicos do usuário autenticado. |
 | `src/routes/enderecos.ts`                      | Define consulta, criação, atualização e exclusão do endereço próprio do usuário autenticado. |
+| `src/routes/pedidos.ts`                        | Define criação idempotente de pedidos e recuperação/rotação do token de visitante. |
+| `src/services/pedidos.ts`                      | Revalida o checkout e cria snapshots, uso de cupom e tracking em transação. |
+| `tests/api/pedidos.test.ts`                    | Testes de integração de criação, snapshots, idempotência, perfis, frete e tracking. |
 | `tests/api/`                                  | Testes HTTP/API que criam a aplicação e requisitam rotas.                                 |
 | `tests/api/catalogo-admin.test.ts`             | Testes de integração de autenticação/autorização e administração de categorias/itens.       |
 | `tests/api/combos-admin.test.ts`               | Testes de integração da administração de combos e composição.                               |
@@ -40,7 +43,7 @@ O guia registra as rotas públicas de catálogo, autenticação, perfil, endere�
 | `vitest.config.ts`                            | Carrega o ambiente seguro de teste também quando Vitest é invocado diretamente.           |
 | `prisma/schema.prisma` e `prisma/migrations/` | Modelo e histórico do banco; não são parte da implementação de uma rota comum.            |
 
-Não há atualmente diretórios de services, repositories ou schemas compartilhados para a API. A rota de categorias consulta Prisma diretamente; não crie camadas vazias por antecipação.
+Não há camada de repositories; serviços e schemas são introduzidos quando uma funcionalidade exige orquestração. A rota de categorias consulta Prisma diretamente; não crie camadas vazias por antecipação.
 
 ## 4. Fluxo de uma requisição
 

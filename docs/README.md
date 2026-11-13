@@ -16,6 +16,7 @@
 7. Leia `06_PADRAO_DAS_ROTAS_API.md` ao verificar ou criar rotas HTTP.
 8. Leia `sprints/MAPA.md` para diagramas Mermaid, dependências e decisões arquiteturais consolidadas.
 9. Use `AGENTS.md` na raiz como instrução persistente para agentes que trabalhem no repositório.
+10. Leia `prisma/schema.prisma` sempre que precisar consultar o banco de dados e saber o estado real.
 
 ## Regra de ouro
 

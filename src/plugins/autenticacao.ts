@@ -67,7 +67,7 @@ async function autenticacaoPlugin(app: FastifyInstance) {
     origin: origemFrontend ? [origemFrontend] : false,
     credentials: Boolean(origemFrontend),
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type"],
+    allowedHeaders: ["Content-Type", "Idempotency-Key"],
   });
   await app.register(cookie);
   await app.register(jwt, {

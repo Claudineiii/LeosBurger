@@ -123,7 +123,9 @@ describe("POST /checkout/preview", () => {
           { itemId: naoElegivel.id, quantidade: 1, adicionais: [] },
         ],
       };
-      const pedidosAntes = await app.prisma.pedido.count();
+      const pedidosAntes = await app.prisma.pedido.count({
+        where: { codigoCupom: cupom.json().codigo },
+      });
       const primeira = await app.inject({
         method: "POST",
         url: "/checkout/preview",
@@ -161,7 +163,11 @@ describe("POST /checkout/preview", () => {
           where: { cupomId: cupom.json().id },
         }),
       ).toBe(0);
-      expect(await app.prisma.pedido.count()).toBe(pedidosAntes);
+      expect(
+        await app.prisma.pedido.count({
+          where: { codigoCupom: cupom.json().codigo },
+        }),
+      ).toBe(pedidosAntes);
 
       const precoAdulterado = await app.inject({
         method: "POST",

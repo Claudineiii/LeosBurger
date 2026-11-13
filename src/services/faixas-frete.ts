@@ -92,7 +92,16 @@ export const substituicaoFaixasSchema = z
 export type FaixaFreteConfigurada = z.infer<typeof faixaFreteSchema>;
 
 export type ResultadoFrete =
-  | { situacao: "DISPONIVEL"; distanciaKm: number; valor: bigint }
+  | {
+      situacao: "DISPONIVEL";
+      distanciaKm: number;
+      valor: bigint;
+      faixa: {
+        id: string;
+        distanciaMinima: number;
+        distanciaMaxima: number;
+      };
+    }
   | { situacao: "INDISPONIVEL" };
 
 export function calcularDistanciaKm(
@@ -250,5 +259,10 @@ export async function calcularFrete(
     situacao: "DISPONIVEL",
     distanciaKm,
     valor: paraCentavos(faixa.valor),
+    faixa: {
+      id: faixa.id,
+      distanciaMinima: faixa.distanciaMinima.toNumber(),
+      distanciaMaxima: faixa.distanciaMaxima.toNumber(),
+    },
   };
 }
