@@ -3,6 +3,7 @@ import {
   MetodoPagamento,
   Prisma,
   StatusPedido,
+  StatusFinanceiroPedido,
   TipoEntrega,
   TipoUsuario,
 } from "@prisma/client";
@@ -14,6 +15,12 @@ import { calcularFrete } from "./faixas-frete.js";
 import { registrarUtilizacaoCupom } from "./cupons.js";
 import { ReferenciaEnderecoService } from "./referencias-endereco.js";
 import { formatarCentavos } from "./valores-monetarios.js";
+import type { ProvedorPagamentos } from "./pagamentos/contrato.js";
+import {
+  ehConflitoTransacional,
+  iniciarTentativaInicial,
+} from "./pagamentos/tentativas.js";
+import { limitarCobranca } from "./pagamentos/limites.js";
 
 export const pedidoBodySchema = checkoutPreviewBodySchema.safeExtend({
   nomeCliente: z.string().trim().min(1).max(100).optional(),
@@ -87,6 +94,7 @@ function prepararResposta(pedido: {
   id: string;
   numero: number;
   status: StatusPedido;
+  statusFinanceiro: StatusFinanceiroPedido;
   tipoEntrega: TipoEntrega;
   metodoPagamento: MetodoPagamento;
   subtotal: Prisma.Decimal;
@@ -137,6 +145,7 @@ function prepararResposta(pedido: {
     id: pedido.id,
     numero: pedido.numero,
     status: pedido.status,
+    statusFinanceiro: pedido.statusFinanceiro,
     tipoEntrega: pedido.tipoEntrega,
     metodoPagamento: pedido.metodoPagamento,
     subtotal: pedido.subtotal.toFixed(2),
@@ -188,6 +197,7 @@ export async function criarPedido(
   request: FastifyRequest,
   chaveRecebida: unknown,
   corpoRecebido: unknown,
+  provedorPagamentos: ProvedorPagamentos | null,
 ) {
   const idempotencyKey = idempotencyKeySchema.parse(chaveRecebida);
   const dados = pedidoBodySchema.parse(corpoRecebido);
@@ -246,8 +256,39 @@ export async function criarPedido(
   };
 
   const encontrado = await obterRespostaExistente();
-  if (encontrado) {
-    return encontrado;
+  const anexarTentativaInicial = async (resultado: {
+    pedido: ReturnType<typeof prepararResposta>;
+    tokenAcompanhamento: string | null;
+    repetido: boolean;
+  }) => {
+    const tentativaPagamento = await iniciarTentativaInicial({
+      prisma: request.server.prisma,
+      provedor: provedorPagamentos,
+      pedidoId: resultado.pedido.id,
+      chavePedido: idempotencyKey,
+      identificadorRateLimit: usuarioRecebido?.id ?? `ip:${request.ip}`,
+    });
+    return {
+      ...resultado,
+      pagamento: {
+        id: tentativaPagamento.id,
+        numeroTentativa: tentativaPagamento.numeroTentativa,
+        metodo: tentativaPagamento.metodo,
+        status: tentativaPagamento.status,
+        valor: tentativaPagamento.valor.toFixed(2),
+        confirmadaEm: tentativaPagamento.confirmadaEm?.toISOString() ?? null,
+        expiraEm: tentativaPagamento.expiraEm?.toISOString() ?? null,
+      },
+    };
+  };
+  if (encontrado) return anexarTentativaInicial(encontrado);
+  if (dados.metodoPagamento === MetodoPagamento.PIX) {
+    if (!provedorPagamentos) throw new Error("PROVEDOR_PAGAMENTO_INDISPONIVEL");
+    limitarCobranca({
+      operacao: "COBRANCA_INICIAL",
+      identificador: usuarioRecebido?.id ?? `ip:${request.ip}`,
+      idempotencyKey: `inicial:${idempotencyKey}`,
+    });
   }
 
   const executar = async () =>
@@ -501,6 +542,16 @@ export async function criarPedido(
           },
         });
 
+        await tx.tentativaPagamento.create({
+          data: {
+            pedidoId: pedido.id,
+            metodo: pedido.metodoPagamento,
+            numeroTentativa: 1,
+            valor: pedido.total,
+            chaveIdempotencia: `inicial:${idempotencyKey}`,
+          },
+        });
+
         if (cupomHistorico) {
           await registrarUtilizacaoCupom(tx, cupomHistorico.id, pedido.id);
         }
@@ -516,18 +567,18 @@ export async function criarPedido(
 
   for (let tentativa = 0; tentativa < 3; tentativa += 1) {
     try {
-      return await executar();
+      return anexarTentativaInicial(await executar());
     } catch (erro) {
+      if (ehConflitoTransacional(erro) && tentativa < 2) {
+        continue;
+      }
       const codigo = erro instanceof Prisma.PrismaClientKnownRequestError
         ? erro.code
         : null;
-      if (codigo === "P2034" && tentativa < 2) {
-        continue;
-      }
       if (codigo === "P2002") {
         const repetido = await obterRespostaExistente();
         if (repetido) {
-          return repetido;
+          return anexarTentativaInicial(repetido);
         }
       }
       throw erro;

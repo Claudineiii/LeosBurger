@@ -115,6 +115,16 @@ Para cada entrada realmente aceita por uma nova rota:
 
 ## 7. Prisma, respostas e códigos HTTP
 
+### Pagamentos — Sprint 13
+
+- `POST /pedidos` cria o pedido e a tentativa inicial; retry da criação devolve a mesma tentativa.
+- `GET /pedidos/:id/tentativas-pagamento` permite consulta ao CLIENTE proprietário ou ao visitante com `X-Pedido-Token` em header. Retorna estado financeiro e campos mínimos da tentativa.
+- `POST /pedidos/:id/tentativas-pagamento` recebe `Idempotency-Key`; para visitante exige também `X-Pedido-Token`. A segunda cobrança PIX é a única adicional permitida.
+- `PATCH /admin/pedidos/:id/tentativas-pagamento/:tentativaId` registra resultado de pagamento presencial por ADMIN. PIX não tem confirmação manual.
+- `POST /dev/pedidos/:id/tentativas-pagamento/simular` só existe em desenvolvimento/testes e exige ADMIN. Não é webhook.
+- Não serialize evento/auditoria interno nem dados de provedor. A comparação do token de visitante usa hash, expiração/revogação e comparação em tempo constante; não coloque token em path ou query.
+- A cobrança inicial e o retry têm limites independentes. Sem configuração de valores em desenvolvimento, a operação falha com `503`; produção exige limites e Redis compartilhado (Sprint 17), e bloqueia escrita financeira enquanto Redis não estiver disponível.
+
 ### Prisma e campos públicos
 
 - Acesse o cliente via `app.prisma`, cuja decoração está tipada em `src/types/fastify.d.ts`.

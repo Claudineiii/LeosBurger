@@ -61,6 +61,59 @@ async function criarUsuario() {
 }
 
 describe("Integridade do banco de dados", () => {
+  it("limita tentativas a duas e exige janela PIX exata de cinco minutos", async () => {
+    const pedido = await criarPedido();
+    const agora = new Date();
+    try {
+      await expect(
+        prisma.tentativaPagamento.create({
+          data: {
+            pedidoId: pedido.id,
+            metodo: MetodoPagamento.PIX,
+            numeroTentativa: 3,
+            valor: 20,
+            chaveIdempotencia: `integridade:${sufixo()}`,
+          },
+        }),
+      ).rejects.toThrow();
+
+      await expect(
+        prisma.tentativaPagamento.create({
+          data: {
+            pedidoId: pedido.id,
+            metodo: MetodoPagamento.PIX,
+            numeroTentativa: 1,
+            valor: 20,
+            chaveIdempotencia: `integridade:${sufixo()}`,
+            confirmadaEm: agora,
+            expiraEm: new Date(agora.getTime() + 300_001),
+          },
+        }),
+      ).rejects.toThrow();
+    } finally {
+      await prisma.pedido.delete({ where: { id: pedido.id } });
+    }
+  });
+
+  it("exige PIX para a segunda tentativa no banco", async () => {
+    const pedido = await criarPedido();
+    try {
+      await expect(
+        prisma.tentativaPagamento.create({
+          data: {
+            pedidoId: pedido.id,
+            metodo: MetodoPagamento.CREDITO,
+            numeroTentativa: 2,
+            valor: 20,
+            chaveIdempotencia: `integridade:${sufixo()}`,
+          },
+        }),
+      ).rejects.toThrow();
+    } finally {
+      await prisma.pedido.delete({ where: { id: pedido.id } });
+    }
+  });
+
   it("rejeita item e combo preenchidos simultaneamente", async () => {
     const categoria = await criarCategoria();
     const item = await criarItem(categoria.id);

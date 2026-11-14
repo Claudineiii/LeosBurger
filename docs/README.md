@@ -3,7 +3,7 @@
 **Projeto:** LEOSBurger  
 **Repositório local informado:** `C:/LeosBurger`  
 **Idioma dos documentos:** português  
-**Status:** fundação do backend validada; APIs de negócio ainda serão implementadas gradualmente.
+**Status:** backend implementado até a Sprint 13; produção depende de itens externos e de rate limiting compartilhado da Sprint 17.
 
 ## Como usar este pacote
 

@@ -8,8 +8,8 @@ Os planos descrevem objetivos; use o estado documentado e verifique código/sche
 
 - Sprints 1–10: consultar `MAPA.md` e os respectivos arquivos para o estado conhecido.
 - Sprint 11: adicionais em JSON, checkout prévio, Geoapify no fluxo de endereço, frete configurável e cupons administrados — implementada localmente; produção depende de validações externas/configuração comercial.
-- Sprint 12: pedido transacional, snapshots/idempotência e token de acompanhamento de visitante.
-- Sprint 13: tentativas de pagamento, contrato independente de provedor e simulador.
+- Sprint 12: concluída; pedido transacional, snapshots/idempotência e token de acompanhamento de visitante.
+- Sprint 13: implementada localmente; tentativas PIX, estado financeiro, contrato independente de provedor, simulador e rotas. Redis em produção segue para Sprint 17; gateway PIX real permanece fora do MVP.
 - Sprint 14: histórico de cliente e acompanhamento de visitante por token.
 - Sprint 15: gestão operacional, pedido de cancelamento, decisão ADMIN e reembolso.
 - Sprint 16: dashboard local `America/Sao_Paulo`, recebimentos e reembolsos confirmados.
@@ -20,7 +20,7 @@ Os planos descrevem objetivos; use o estado documentado e verifique código/sche
 
 - Stack: Node.js 22, TypeScript ESM/NodeNext, Fastify 5, Prisma 6.19.3, PostgreSQL 16, Zod, Vitest, Swagger/OpenAPI e Scalar.
 - Não usar React. Não criar caminhos frontend presumidos.
-- O schema atual define 17 tabelas/modelos após as migrations da Sprint 11; a contagem não é limite obrigatório. `cupons`, elegibilidade, utilizações, `faixas_frete`, referências/cache/controle geográfico estão implementados. `tentativas_pagamento` e `reembolsos` seguem aprovados para sprints futuras.
+- O schema atual define 18 tabelas/modelos após a Sprint 13; a contagem não é limite obrigatório. `tentativas_pagamento` está implementada; `reembolsos` segue para Sprint 15.
 - Não criar tabelas de carrinho, estoque ou sessão; sem estoque/atendimento telefônico/PDF.
 - Visitante: somente PIX online. Cliente autenticado: PIX, cartão presencial crédito/débito, dinheiro presencial. Sem cartão online.
 - Pagamento presencial começa pendente. Confirmação ADMIN autorizada inclui responsável e horário. Estado financeiro não é status operacional.

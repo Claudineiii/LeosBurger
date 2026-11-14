@@ -2,7 +2,7 @@
 
 ## Resumo executivo
 
-O LEOSBurger é um cardápio digital com pedidos online. A API possui rotas de saúde, catálogo público de categorias, itens e combos, autenticação, perfil, endereços, administração de catálogo/combos/cupons/faixas de frete, validação geográfica, prévia de checkout e criação transacional de pedidos. Cobranças/pagamentos e dashboard continuam planejados.
+O LEOSBurger é um cardápio digital com pedidos online. A API possui catálogo, autenticação, administração, endereços, checkout, pedidos transacionais e tentativas financeiras com simulador restrito a desenvolvimento/testes. Gateway PIX real, operações administrativas completas de pedidos/reembolsos e dashboard ainda estão planejados.
 
 ## Tecnologias e versões conhecidas
 
@@ -149,3 +149,15 @@ A chave UUIDv4 é única e mantida pela vida do pedido; o escopo é hash do usu�
 A migration `20261105120000_pedidos_idempotencia_tracking` é aditiva, não cria tabela e preserva as 11 CHECK constraints anteriores; foi aplicada somente ao banco isolado `leosburger_test`. Não há cobrança PIX, simulador, tentativa de pagamento, chamada Geoapify, frontend nem fluxo de mudança/cancelamento de status nesta sprint. A validade terminal de 30 dias está representada e aplicada pelo campo de expiração, mas o preenchimento automático desse campo ao concluir/cancelar depende do fluxo de transição de status futuro.
 
 Os testes de integração novos cobrem snapshots de itens/adicionais, combo/cupom, faixa/endereço, idempotência concorrente e conflitante, método por perfil, bloqueio de ADMIN e recuperação/rotação/expiração. Validação local em 13/11/2026: `npm test` passou com 27 arquivos/169 testes (163 legados + 6 novos); `npm run build`, `npx prisma validate`, `npm run db:test:migrate` e `git diff --check` também passaram. A migration foi aplicada somente em `leosburger_test`.
+
+## Estado da Sprint 13 — pagamentos e simulador
+
+Implementadas tentativas PIX idempotentes ligadas ao pedido, estado financeiro separado do operacional, duas tentativas no máximo e prazo exato de cinco minutos a partir da confirmação de criação. A segunda tentativa é autenticada por sessão do CLIENTE proprietário ou por `X-Pedido-Token` do visitante. Um job local expira tentativas vencidas e cancela o pedido quando vence a segunda, acrescentando o motivo ao histórico. Pagamentos presenciais começam pendentes e a confirmação/recusa é registrada por ADMIN.
+
+O contrato neutro de provedor e o simulador estão em `src/services/pagamentos/`. Eventos normalizados preservam IDs e auditoria; duplicatas não repetem a transição, pagamentos tardios em pedidos cancelados mantêm `status=CANCELADO` e mudam o financeiro para `REEMBOLSO_PENDENTE`. Nenhum gateway, webhook ou movimentação real foi integrado.
+
+A migration `20261113120000_pagamentos_sprint13` adiciona `tentativas_pagamento`, o estado financeiro do pedido e constraints/índices novos, preservando as 11 CHECK anteriores. Foi aplicada ao banco isolado `leosburger_test`. Cobranças têm limite configurável por operação; valores devem ser definidos antes da produção. O adaptador Redis compartilhado ainda não existe: cobranças em produção falham fechadas até a Sprint 17. A execução local usa memória.
+
+Na correção final, uma cobrança PIX pendente sem confirmação de criação não é retornada como pronta: a API responde `503`, registra a ocorrência e permite replay idempotente. Advisory lock transacional no PostgreSQL serializa a criação no provedor para a mesma tentativa. Retries de transação reconhecem `P2034` e SQLSTATE `40001` (também quando encapsulado por `P2010`). A migration `20261113130000_pix_segunda_tentativa_check` acrescenta CHECK para exigir PIX na tentativa 2, sem modificar as 11 constraints originais.
+
+Validação final em 13/11/2026: `npm test -- --run` passou (29 arquivos/186 testes), `npm run build`, `npx prisma validate`, `npm run db:test:migrate` e `git diff --check` passaram. As migrations foram aplicadas somente ao banco isolado `leosburger_test`. O Prisma informou apenas o aviso conhecido de depreciação da configuração `package.json#prisma`; nenhuma atualização de dependência foi feita.

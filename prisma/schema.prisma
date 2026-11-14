@@ -42,6 +42,24 @@ enum MetodoPagamento {
   @@map("metodo_pagamento")
 }
 
+enum StatusTentativaPagamento {
+  PENDENTE
+  PAGO
+  FALHOU
+  RECUSADO
+  EXPIRADO
+
+  @@map("status_tentativa_pagamento")
+}
+
+enum StatusFinanceiroPedido {
+  PENDENTE
+  PAGO
+  REEMBOLSO_PENDENTE
+
+  @@map("status_financeiro_pedido")
+}
+
 enum StatusReferenciaEndereco {
   CONFIRMADO
   PENDENTE
@@ -301,6 +319,7 @@ model Pedido {
 
   tipoEntrega TipoEntrega  @map("tipo_entrega")
   status      StatusPedido @default(PENDENTE)
+  statusFinanceiro StatusFinanceiroPedido @default(PENDENTE) @map("status_financeiro")
 
   idempotencyKey         String? @unique @map("idempotency_key") @db.Uuid
   idempotencyPayloadHash String? @map("idempotency_payload_hash") @db.Char(64)
@@ -345,11 +364,37 @@ model Pedido {
   usuario         Usuario?         @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
   itensPedido     ItemPedido[]
   utilizacaoCupom CupomUtilizacao?
+  tentativasPagamento TentativaPagamento[]
 
   @@index([usuarioId])
   @@index([status])
   @@index([criadoEm])
   @@map("pedidos")
+}
+
+model TentativaPagamento {
+  id                    String                   @id @default(uuid())
+  pedidoId              String                   @map("pedido_id")
+  metodo                MetodoPagamento
+  numeroTentativa       Int                      @map("numero_tentativa")
+  status                StatusTentativaPagamento @default(PENDENTE)
+  valor                 Decimal                  @db.Decimal(10, 2)
+  chaveIdempotencia     String                   @unique @map("chave_idempotencia") @db.VarChar(160)
+  identificadorExterno String?                  @map("identificador_externo") @db.VarChar(150)
+  transacaoExterna      String?                  @map("transacao_externa") @db.VarChar(150)
+  criadoEm              DateTime                 @default(now()) @map("criado_em") @db.Timestamptz(3)
+  confirmadaEm          DateTime?                @map("confirmada_em") @db.Timestamptz(3)
+  expiraEm              DateTime?                @map("expira_em") @db.Timestamptz(3)
+  encerradoEm           DateTime?                @map("encerrado_em") @db.Timestamptz(3)
+  eventos               Json                     @default("[]") @db.JsonB
+  auditoria             Json                     @default("[]") @db.JsonB
+
+  pedido Pedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+
+  @@unique([pedidoId, numeroTentativa])
+  @@index([pedidoId, status])
+  @@index([status, expiraEm])
+  @@map("tentativas_pagamento")
 }
 
 model ItemPedido {

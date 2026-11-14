@@ -2,11 +2,11 @@
 
 ## 1. Estado atual e regra de evolução
 
-O schema real está em `prisma/schema.prisma` e atualmente define 17 modelos/tabelas, incluindo as estruturas implementadas na Sprint 11. Essa contagem descreve o estado atual, não é um limite arquitetural.
+O schema real está em `prisma/schema.prisma` e atualmente define 18 modelos/tabelas após a Sprint 13. Essa contagem descreve o estado atual, não é um limite arquitetural.
 
-As tabelas de cupons, elegibilidade, usos de cupom, faixas de frete, referências temporárias, cache e controle Geoapify foram criadas por migrations incrementais. A Sprint 12 acrescentou somente colunas e constraints aditivas em `pedidos`; tentativas de pagamento e reembolsos seguem conceitualmente aprovados, mas ainda não existem no banco.
+As tabelas de cupons, elegibilidade, usos de cupom, faixas de frete, referências temporárias, cache e controle Geoapify foram criadas por migrations incrementais. A Sprint 12 acrescentou colunas e constraints aditivas em `pedidos`; a Sprint 13 adicionou estado financeiro e `tentativas_pagamento`. Reembolsos continuam para a Sprint 15.
 
-Uma nova tabela é apropriada quando representar entidade/responsabilidade persistente e garantir integridade referencial. As migrations da Sprint 11 e da Sprint 12 são aditivas e não removem nem alteram as 11 CHECK constraints da migration definitiva. As migrations novas foram aplicadas somente ao banco isolado `leosburger_test`; não foram aplicadas ao banco de desenvolvimento.
+Uma nova tabela é apropriada quando representar entidade/responsabilidade persistente e garantir integridade referencial. As migrations das Sprints 11–13 são aditivas e não removem nem alteram as 11 CHECK constraints da migration definitiva. As migrations novas foram aplicadas somente ao banco isolado `leosburger_test`; não foram aplicadas ao banco de desenvolvimento.
 
 ## 2. Modelos existentes
 
@@ -18,18 +18,19 @@ Uma nova tabela é apropriada quando representar entidade/responsabilidade persi
 | `itens` | Itens, preços, estado e coluna JSON `adicionais`. |
 | `combos` | Combos e preços definidos pelo proprietário. |
 | `itens_combo` | Composição atual/removida logicamente dos combos. |
-| `pedidos` | Compra, snapshots de cliente/endereço/faixa/cupom, modalidade, valores, método, status/histórico, idempotência e hash/validade/revogação do tracking visitante. |
+| `pedidos` | Compra, snapshots de cliente/endereço/faixa/cupom, modalidade, valores, método, status operacional e financeiro/histórico, idempotência e hash/validade/revogação do tracking visitante. |
+| `tentativas_pagamento` | Tentativa por cobrança, método/valor/sequência, chave idempotente, vencimento PIX e auditoria dos eventos e anomalias. |
 | `itens_pedido` | Linhas históricas de item ou combo, adicionais e composição histórica JSON. |
 
 O enum atual `StatusPedido` usa `PREPARANDO` e esse nome está aprovado; não renomear para `EM_PREPARACAO`. O enum `MetodoPagamento` existente tem `PIX`, `CREDITO`, `DEBITO`, `DINHEIRO`; cartão permanece exclusivamente presencial.
 
-As 11 constraints CHECK documentadas na migration definitiva devem ser preservadas. Antes de editar constraints, conferir SQL real e `tests/banco/integridade.test.ts`; nunca remover/enfraquecer uma regra para adaptar a aplicação.
+As 11 constraints CHECK documentadas na migration definitiva devem ser preservadas. A migration da Sprint 13 adiciona uma CHECK independente exigindo que a tentativa de número 2 use PIX. Antes de editar constraints, conferir SQL real e `tests/banco/integridade.test.ts`; nunca remover/enfraquecer uma regra para adaptar a aplicação.
 
 As colunas `DateTime` existentes são `TIMESTAMP(3)` sem fuso no PostgreSQL. Armazenar instantes em UTC é uma convenção da aplicação, não uma propriedade garantida pelo tipo da coluna; futuras rotas e relatórios devem normalizar e testar essa convenção.
 
 ## 3. Estruturas implementadas na Sprint 11 e expansão futura
 
-As estruturas abaixo já existem no schema e em migrations. As tentativas de pagamento e os reembolsos permanecem aprovados para sprints futuras.
+As estruturas abaixo já existem no schema e em migrations. Reembolsos seguem aprovados para a Sprint 15.
 
 | Entidade aprovada | Motivo / integridade |
 |---|---|
@@ -46,6 +47,8 @@ As estruturas abaixo já existem no schema e em migrations. As tentativas de pag
 | `reembolsos` | Um registro por ocorrência, ligado ao pedido e à tentativa/transação original; suporta vários registros por pedido e prepara valor parcial sem habilitá-lo no MVP. |
 
 Não criar tabela de adicionais: manter configuração JSON em `Item.adicionais`. Não criar tabela de carrinho, cache, sessão ou histórico operacional genérico sem necessidade comprovada. Cancelamento/reembolso pode usar eventos tipados no JSONB `Pedido.historicoStatus`; somente propor outra entidade se testes/requisitos demonstrarem que o histórico do pedido não é suficiente.
+
+`Pedido.status` continua operacional. `Pedido.statusFinanceiro` começa `PENDENTE`, passa a `PAGO` ao registrar recebimento e a `REEMBOLSO_PENDENTE` quando um pagamento chega após cancelamento. `TentativaPagamento` conserva método, valor, número, idempotência, timestamps, identificador/transação externa e listas JSONB de eventos/auditoria. As migrations impõem número 1/2, método PIX obrigatório na tentativa 2, prazo PIX exatamente igual a cinco minutos, unicidade por pedido/número/chave e índice parcial para uma cobrança PIX pendente por pedido.
 
 ## 4. Contrato dos adicionais no JSON
 

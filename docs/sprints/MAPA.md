@@ -6,8 +6,8 @@
 |---|---|---|
 | 01–10 | Fundação, catálogo, autenticação, perfil | Estado conhecido como concluído; conferir documentos e código. |
 | 11 | Checkout prévio, adicionais, cupons, Geoapify/faixas | Implementada localmente; antes de produção faltam origem e preços comerciais, validação real do critério/quota/termos Geoapify e rate limit para validação pública. |
-| 12 | Criação transacional, snapshots, token visitante | Após 11; migration de campos em `pedidos` precisa ser revisada. |
-| 13 | Tentativas, contrato genérico e simulador de pagamento | Após 12; sem provedor real. |
+| 12 | Criação transacional, snapshots, token visitante | Concluída; migration aplicada ao banco de teste. |
+| 13 | Tentativas, contrato genérico e simulador de pagamento | Implementada localmente; sem Redis compartilhado ou provedor real. |
 | 14 | Histórico, recuperação e operações de visitante | Após 12–13; token válido enquanto pedido ativo e por 30 dias após conclusão/cancelamento, recuperação número+telefone e permissões limitadas. |
 | 15 | Administração, cancelamento e reembolso | Após 12–14; cliente/visitante solicita, ADMIN decide; reembolso é registro individual. |
 | 16 | Dashboard e fechamentos | Após 13–15; `America/Sao_Paulo`, semestres civis. |
@@ -18,9 +18,9 @@ O backend está em `src/` na raiz. Não existe `backend/src/` nem pasta frontend
 
 ## Modelo de dados: atual e proposta
 
-O schema real possui 17 modelos/tabelas após a Sprint 11: oito originais, quatro para endereços/cache/quota Geoapify e cinco para cupons/elegibilidade/usos/faixas. `tentativas_pagamento` e `reembolsos` permanecem aprovados e não implementados. `Pedido` já guarda snapshots de cliente/endereço, valores, distância, taxa e código de cupom; `ItemPedido` guarda nome/preço, adicionais e composição histórica. A criação do pedido ainda precisará persistir tracking, idempotência e snapshot da faixa.
+O schema real possui 18 modelos/tabelas após a Sprint 13. `tentativas_pagamento` e `Pedido.statusFinanceiro` foram adicionados; `reembolsos` segue para Sprint 15. `Pedido` guarda snapshots de checkout, tracking e idempotência; `ItemPedido` guarda nome/preço, adicionais e composição histórica.
 
-Os diagramas abaixo representam decisões e propostas futuras; não afirmam que endpoints, tabelas ou fluxos já estejam implementados.
+Os diagramas registram decisões aprovadas e fluxos planejados; use o estado por Sprint e o código para distinguir o que está implementado.
 
 ### Fluxo de checkout e tentativas de pagamento
 

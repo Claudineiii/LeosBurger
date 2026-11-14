@@ -74,7 +74,7 @@ O GitHub Actions fornece `TEST_DATABASE_URL` apontando para seu serviço Postgre
 
 ## Criação de pedidos e pagamentos — plano das Sprints 12–15
 
-Os fluxos abaixo continuam planejados; os testes devem usar exclusivamente `leosburger_test`, fixtures isoladas e limpeza direcionada.
+Os testes devem usar exclusivamente `leosburger_test`, fixtures isoladas e limpeza direcionada. Sprint 12 está concluída; Sprint 13 está implementada localmente.
 
 Pendências de cobertura Sprint 11: sucesso da rota visitante com resposta realista de provider é coberto no serviço/provider, não validado contra serviço externo; endpoint público de validação ainda não tem rate limit específico; atribuições não podem ser verificadas em UI enquanto não houver frontend. Nenhum endereço comercial real nem coordenada de origem foi validado.
 
@@ -90,12 +90,14 @@ Pendências de cobertura Sprint 11: sucesso da rota visitante com resposta reali
 - Alterar catálogo, endereço, faixa ou cupom depois da compra não altera snapshots.
 - Migration incremental e integridade de novas tabelas/campos; sem reset.
 
-### Sprint 13 — `tests/api/pagamentos.test.ts`
+### Sprint 13 — `tests/api/pagamentos.test.ts` e `tests/unit/services/pagamentos.test.ts`
+
+Cobertura implementada para tentativa PIX inicial e segunda cobrança idempotente/concurrente, autorização do visitante pelo token, consulta de status, limite de duas tentativas, janela exata de cinco minutos, expiração da segunda e cancelamento com histórico, confirmação presencial ADMIN, pagamento tardio após cancelamento, evento duplicado, limites configuráveis e trava do simulador em produção. `tests/banco/integridade.test.ts` confere o máximo de duas tentativas e a constraint temporal.
 
 - Contrato de criar/consultar/processar evento e simulador: pendente, sucesso, falha, recusa, expiração e confirmação tardia.
 - Cobrança inicial e no máximo uma tentativa adicional (duas no total), cada qual com cinco minutos desde confirmação de criação pelo backend; falha/recusa explícita encerra imediatamente; tentativa 2 após falha/recusa/expiração da primeira; expiração da segunda cancela automaticamente; falha/recusa da segunda não habilita terceira.
 - Idempotência e concorrência: nenhuma criação simultânea/terceira tentativa; repetição idempotente não conta como nova tentativa; retries ficam no mesmo pedido e snapshot; pedido pago/cancelado bloqueia.
-- Rate limit explícito na cobrança inicial e na segunda tentativa para visitante e CLIENTE; indisponibilidade Redis bloqueia operações sensíveis de criação/alteração.
+- Rate limit por operação para cobrança inicial e segunda tentativa; testes unitários verificam contagem, janela, replay e falha fechada em produção sem Redis. Limites numéricos reais precisam ser aprovados antes de produção.
 - Confirmação presencial somente ADMIN, ator/data/result; sem confirmação manual de PIX.
 - Tardia associada à tentativa original. Pedido cancelado mantém status operacional `CANCELADO`, tentativa fica `PAGO`, estado financeiro do pedido passa a `REEMBOLSO_PENDENTE` e reembolso aguarda execução manual.
 - Confirmação repetida da mesma cobrança/evento: idempotência e preservação dos identificadores, sem nova tentativa ou reembolso automático. Duas cobranças distintas confirmadas: preservar cada tentativa/transação e encaminhar ocorrência à análise ADMIN, sem reembolso automático. Testar esses casos separadamente.

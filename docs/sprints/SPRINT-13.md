@@ -1,6 +1,6 @@
 # Sprint 13 — Tentativas de pagamento e simulador
 
-**Estado:** Planejada; depende de pedidos transacionais da Sprint 12. Provedor PIX real não escolhido.
+**Estado:** Implementada localmente; migration/testes aplicados somente a `leosburger_test`. Redis compartilhado e provedor PIX real permanecem ausentes; provedor não escolhido.
 
 ## Objetivo
 
@@ -32,11 +32,12 @@ O simulador reproduz pendente, sucesso/aprovação, falha, recusa, expiração e
 - Uma transação financeira só atualiza a tentativa/pedido quando esperado; falha externa não é resposta de sucesso.
 - O token de visitante autoriza solicitar a segunda tentativa PIX, sob rate limit, idempotência e as mesmas regras de expiração/quantidade; token não altera dados do pedido.
 
-## Arquivos e API planejados
+## Arquivos e APIs
 
 - Existentes: `src/app.ts`, `src/plugins/prisma.ts`, `src/plugins/autenticacao.ts`, `prisma/schema.prisma`, migrations e `tests/api/`.
-- Planejados sob demanda: `src/services/pagamentos/contrato.ts`, `src/services/pagamentos/simulador.ts`, extensão de `src/routes/pedidos.ts`, `tests/api/pagamentos.test.ts`; migration para tabela.
-- Proposta: `POST /pedidos/:id/tentativas-pagamento` para solicitar a segunda tentativa, `GET /pedidos/:id/tentativas-pagamento` (proprietário/ADMIN), confirmação presencial por endpoint ADMIN. CLIENTE dono ou visitante com token válido podem solicitar a segunda tentativa. OpenAPI não deve expor operação de confirmação PIX manual.
+- Implementados: `src/services/pagamentos/contrato.ts`, `simulador.ts`, `tentativas.ts`, `limites.ts`, `src/routes/pedidos.ts`, `tests/api/pagamentos.test.ts`, testes unitários e migration aditiva.
+- Rotas: tentativa inicial junto de `POST /pedidos`; `GET/POST /pedidos/:id/tentativas-pagamento`; `PATCH /admin/pedidos/:id/tentativas-pagamento/:tentativaId`; endpoint de evento simulado em `/dev/...`, registrado somente fora de produção.
+- CLIENTE proprietário ou visitante com `X-Pedido-Token` consultam/solicitam a segunda tentativa. ADMIN confirma métodos presenciais. Não há confirmação manual PIX.
 
 ## Passos, testes e aceite
 
@@ -50,3 +51,11 @@ O simulador reproduz pendente, sucesso/aprovação, falha, recusa, expiração e
 8. Atualizar OpenAPI, migration, testes de integridade e documentação.
 
 Aceite: cobrança inicial e no máximo uma tentativa adicional (duas no total), cada uma com prazo de cinco minutos iniciado na confirmação do backend; falha/recusa encerra imediatamente; segunda disponível após falha/recusa/expiração da primeira; expiração da segunda cancela automaticamente e falha/recusa da segunda não permite terceira; rate limit protege ambas as cobranças para autenticados e visitantes; sem cobranças simultâneas ou criação por replay idempotente; simulador fora de produção; confirmações tardias e eventos duplicados preservados e distintos para auditoria, sem associação incorreta ou reembolso automático indevido. Integração real continua pendente.
+
+## Evidência e limite de ambiente
+
+A migration `20261113120000_pagamentos_sprint13` foi aplicada a `leosburger_test`, sem alterar as 11 CHECK constraints existentes. Os limites são configuráveis em `PAGAMENTOS_RATE_LIMIT_COBRANCA_INICIAL`, `PAGAMENTOS_RATE_LIMIT_SEGUNDA_TENTATIVA` e `PAGAMENTOS_RATE_LIMIT_JANELA_SEGUNDOS`; os valores precisam ser aprovados antes de produção. Desenvolvimento/testes usam memória. O adaptador Redis compartilhado é da Sprint 17 e, até existir, a API falha fechada para cobranças em produção. Provedor real/webhook real continuam fora do escopo.
+
+Correções da revisão técnica: a confirmação da cobrança serializa a chamada ao provedor por tentativa usando advisory lock no PostgreSQL; uma tentativa PIX ainda pendente e sem `confirmadaEm` retorna `503`, nunca uma cobrança pronta. O prazo de cinco minutos continua contado de `confirmadaEm`. Retentativas transacionais reconhecem Prisma `P2034` e SQLSTATE `40001`, inclusive quando encapsulado em `P2010`; uma migration incremental adiciona CHECK exigindo PIX para a tentativa 2.
+
+Validação final em 13/11/2026: `npm test -- --run` passou (29 arquivos/186 testes), `npm run build`, `npx prisma validate`, `npm run db:test:migrate` e `git diff --check` passaram. A migration `20261113130000_pix_segunda_tentativa_check` foi aplicada somente a `leosburger_test`. O Prisma exibiu o aviso de depreciação de `package.json#prisma`.

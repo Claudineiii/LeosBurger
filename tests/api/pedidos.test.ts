@@ -81,6 +81,12 @@ describe("POST /pedidos", () => {
       });
 
       expect(resposta.statusCode).toBe(201);
+      expect(resposta.json().pagamento).toMatchObject({
+        numeroTentativa: 1,
+        metodo: "PIX",
+        status: "PENDENTE",
+        valor: "33.00",
+      });
       expect(resposta.json()).toMatchObject({
         pedido: {
           status: "PENDENTE",
@@ -114,6 +120,11 @@ describe("POST /pedidos", () => {
         where: { idempotencyKey },
         include: { itensPedido: true },
       });
+      const tentativaInicial = await app.prisma.tentativaPagamento.findFirstOrThrow({
+        where: { pedidoId: pedido.id },
+      });
+      expect(tentativaInicial.numeroTentativa).toBe(1);
+      expect(tentativaInicial.chaveIdempotencia).toBe(`inicial:${idempotencyKey}`);
       expect(pedido.tokenAcompanhamentoHash).toBe(hashToken(token));
       expect(pedido.tokenAcompanhamentoHash).not.toBe(token);
       expect(JSON.stringify(pedido)).not.toContain(token);
@@ -155,6 +166,26 @@ describe("POST /pedidos", () => {
     const app = criarAplicacao();
     apps.push(app);
     await app.ready();
+    const provedorOriginal = app.provedorPagamentos!;
+    let chamadasProvedor = 0;
+    let chamadasAtivas = 0;
+    let maximoChamadasAtivas = 0;
+    app.provedorPagamentos = {
+      criarCobranca: async (input) => {
+        chamadasProvedor += 1;
+        chamadasAtivas += 1;
+        maximoChamadasAtivas = Math.max(maximoChamadasAtivas, chamadasAtivas);
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        try {
+          return await provedorOriginal.criarCobranca(input);
+        } finally {
+          chamadasAtivas -= 1;
+        }
+      },
+      consultarCobranca: (identificador) =>
+        provedorOriginal.consultarCobranca(identificador),
+      normalizarEvento: (input) => provedorOriginal.normalizarEvento(input),
+    };
 
     const categoria = await app.prisma.categoria.create({
       data: { nome: `Idempotência ${randomUUID()}` },
@@ -194,9 +225,92 @@ describe("POST /pedidos", () => {
       ]);
       expect(respostas.map(({ statusCode }) => statusCode).sort()).toEqual([200, 201]);
       expect(respostas[0]!.json().pedido.id).toBe(respostas[1]!.json().pedido.id);
+      expect(respostas[0]!.json().pagamento.confirmadaEm).not.toBeNull();
+      expect(respostas[0]!.json().pagamento.expiraEm).not.toBeNull();
+      expect(chamadasProvedor).toBe(1);
+      expect(maximoChamadasAtivas).toBe(1);
       expect(
         await app.prisma.pedido.count({ where: { idempotencyKey } }),
       ).toBe(1);
+    } finally {
+      await app.prisma.pedido.deleteMany({ where: { idempotencyKey } });
+      await app.prisma.item.delete({ where: { id: item.id } });
+      await app.prisma.categoria.delete({ where: { id: categoria.id } });
+    }
+  });
+
+  it("não retorna tentativa incompleta e permite replay idempotente após erro do provedor", async () => {
+    const app = criarAplicacao();
+    apps.push(app);
+    await app.ready();
+
+    const categoria = await app.prisma.categoria.create({
+      data: { nome: `Cobrança inconclusiva ${randomUUID()}` },
+      select: { id: true },
+    });
+    const item = await app.prisma.item.create({
+      data: {
+        categoriaId: categoria.id,
+        nome: "Item para cobrança inconclusiva",
+        preco: new Prisma.Decimal("8.00"),
+      },
+      select: { id: true },
+    });
+    const idempotencyKey = randomUUID();
+    const payload = {
+      tipoEntrega: "RETIRADA",
+      metodoPagamento: "PIX",
+      nomeCliente: "Visitante cobrança",
+      telefoneCliente: "19999991234",
+      itens: [{ itemId: item.id, quantidade: 1 }],
+    };
+    const provedorOriginal = app.provedorPagamentos!;
+    let chamadasProvedor = 0;
+    app.provedorPagamentos = {
+      criarCobranca: async (input) => {
+        chamadasProvedor += 1;
+        if (chamadasProvedor === 1) throw new Error("falha temporária do provedor");
+        return provedorOriginal.criarCobranca(input);
+      },
+      consultarCobranca: (identificador) =>
+        provedorOriginal.consultarCobranca(identificador),
+      normalizarEvento: (input) => provedorOriginal.normalizarEvento(input),
+    };
+
+    try {
+      const primeiraResposta = await app.inject({
+        method: "POST",
+        url: "/pedidos",
+        headers: { "idempotency-key": idempotencyKey },
+        payload,
+      });
+      expect(primeiraResposta.statusCode).toBe(503);
+      expect(primeiraResposta.json()).not.toHaveProperty("pagamento");
+
+      const pedido = await app.prisma.pedido.findUniqueOrThrow({
+        where: { idempotencyKey },
+      });
+      const tentativa = await app.prisma.tentativaPagamento.findUniqueOrThrow({
+        where: { chaveIdempotencia: `inicial:${idempotencyKey}` },
+      });
+      expect(tentativa.status).toBe("PENDENTE");
+      expect(tentativa.confirmadaEm).toBeNull();
+      expect(tentativa.expiraEm).toBeNull();
+
+      const repeticao = await app.inject({
+        method: "POST",
+        url: "/pedidos",
+        headers: { "idempotency-key": idempotencyKey },
+        payload,
+      });
+      expect(repeticao.statusCode).toBe(200);
+      expect(repeticao.json().pedido.id).toBe(pedido.id);
+      expect(repeticao.json().pagamento.confirmadaEm).not.toBeNull();
+      expect(
+        new Date(repeticao.json().pagamento.expiraEm).getTime() -
+          new Date(repeticao.json().pagamento.confirmadaEm).getTime(),
+      ).toBe(300_000);
+      expect(chamadasProvedor).toBe(2);
     } finally {
       await app.prisma.pedido.deleteMany({ where: { idempotencyKey } });
       await app.prisma.item.delete({ where: { id: item.id } });

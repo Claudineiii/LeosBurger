@@ -92,7 +92,7 @@ Regras aprovadas para o checkout futuro:
 - Confirmação tardia de PIX permanece vinculada à cobrança/tentativa original. Se o pedido já foi cancelado, registrar a confirmação, manter a tentativa como `PAGO`, atualizar o estado financeiro do pedido para `REEMBOLSO_PENDENTE` e preservar o status operacional `CANCELADO`; ADMIN trata o reembolso manualmente. Uma confirmação repetida da mesma cobrança é evento duplicado, deve preservar IDs de evento/transação e ser idempotente, sem reembolso automático. Duas cobranças distintas confirmadas são duas operações financeiras vinculadas às respectivas tentativas; registrar a ocorrência e encaminhar à análise ADMIN, também sem reembolso automático. Não associar confirmação a outro pedido.
 - O simulador reproduz pendente, pagamento confirmado, falha, recusa, expiração, confirmação tardia e eventos duplicados; existe somente em desenvolvimento/testes e não movimenta dinheiro nem pode ser habilitado em produção.
 
-O schema real ainda não tem tabela de tentativas nem estado/auditoria completa de pagamentos. A modelagem e migration aditivas serão preparadas nas sprints, sem alteração de schema nesta tarefa.
+Na Sprint 13, `tentativas_pagamento` e `Pedido.statusFinanceiro` passaram a persistir o ciclo financeiro separado do status operacional. As regras de produção continuam exigindo limites numéricos por operação aprovados e rate limiting Redis compartilhado; até a Sprint 17, cobranças em produção falham fechadas. Reembolso manual segue para a Sprint 15.
 
 ## 5. Entrega e distância
 

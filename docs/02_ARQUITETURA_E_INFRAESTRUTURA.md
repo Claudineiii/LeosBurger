@@ -5,7 +5,7 @@
 
 ## 1. Visão do produto
 
-O LEOSBurger permite que clientes consultem o cardápio e façam pedidos online. O backend possui catálogo público, autenticação, perfil/endereço e administração de catálogo/combos/cupons/faixas de frete. A Sprint 11 implementa validação geográfica de endereço e prévia de checkout somente de leitura; criação definitiva de pedidos, pagamentos e dashboard continuam planejados.
+O LEOSBurger permite consultar cardápio e fazer pedidos online. O backend possui catálogo, autenticação, administração, endereços, checkout, pedidos transacionais e tentativas de pagamento com simulador de desenvolvimento/testes. Provedor real PIX, operações completas de pedidos/reembolsos e dashboard continuam futuros.
 
 ## 2. Arquitetura lógica atual e desejada
 
@@ -66,13 +66,14 @@ A sessão é stateless: o JWT fica em cookie `HttpOnly`, `SameSite=Strict`, `Pat
 ### Pagamentos
 
 - O domínio de pedidos/pagamentos não conhece nomes, SDKs, formatos de resposta ou credenciais de fornecedor.
-- Criar o contrato genérico independente de fornecedor antes de implementar o simulador na Sprint 13. O contrato cobre criação/consulta de cobrança e processamento de evento normalizado.
-- O simulador implementa o contrato e só pode ser selecionado em desenvolvimento/testes. A inicialização em produção deve falhar se a configuração tentar habilitá-lo.
+- O contrato genérico independente de fornecedor em `src/services/pagamentos/contrato.ts` cobre criação/consulta de cobrança e evento normalizado.
+- O simulador implementa o contrato e só pode ser selecionado em desenvolvimento/testes. A inicialização em produção falha quando `PAGAMENTOS_PROVEDOR=simulador`.
 - Não criar webhook HTTP até existir um adaptador real e contrato validável. A futura notificação terá autenticação criptográfica, validação, idempotência e atualização transacional.
 - Cartão e dinheiro são pagamentos presenciais. Nenhum dado de cartão é coletado ou armazenado; o pedido inicia pendente e uma operação ADMIN registra resultado, responsável e data.
-- O schema atual tem somente `metodoPagamento`, sem estado financeiro completo/tentativas. Avaliar a tabela `tentativas_pagamento`, vinculada ao pedido, para retries sem duplicar compra, idempotência, confirmação presencial e conciliação de eventos tardios. Estado financeiro nunca deve ser confundido com status operacional.
+- `Pedido.statusFinanceiro` e `tentativas_pagamento` persistem pagamentos; o status financeiro nunca é confundido com o estado operacional.
 - Duas tentativas PIX no total: cobrança inicial e uma adicional, cinco minutos cada desde a confirmação de criação pelo backend. Falha/recusa explícita encerra imediatamente a tentativa; segunda fica disponível após falha/recusa/expiração da primeira. Expiração da segunda cancela automaticamente; falha/recusa da segunda não permite terceira. Idempotência e controle concorrente impedem simultâneas, cobranças repetidas e exceder o limite; pedido pago/cancelado não aceita nova cobrança.
 - Confirmação tardia após cancelamento fica vinculada à tentativa original, marca a tentativa `PAGO`, o estado financeiro do pedido `REEMBOLSO_PENDENTE` e mantém `Pedido.status=CANCELADO`; reembolso manual. Evento repetido da mesma cobrança é distinto de confirmações de cobranças de duas tentativas diferentes; ambos são auditados para análise ADMIN sem reembolso automático.
+- Os limites numéricos de cobrança são configuráveis e devem ser aprovados antes da produção. O ambiente local usa memória; até a Sprint 17 adicionar Redis compartilhado, operações financeiras em produção falham fechadas.
 - Cada ocorrência de reembolso tem linha própria em `reembolsos`, permite múltiplos por pedido e se vincula à transação original. PIX manual por ADMIN; devolução presencial manual; reembolso parcial estruturalmente possível, mas desativado.
 
 ### Fronteiras entre backend e frontend

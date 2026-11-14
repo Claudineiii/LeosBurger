@@ -17,11 +17,28 @@ import { cuponsAdminRoutes } from "./routes/cupons-admin.js";
 import { faixasFreteAdminRoutes } from "./routes/faixas-frete-admin.js";
 import { checkoutPreviewRoutes } from "./routes/checkout-preview.js";
 import { pedidosRoutes } from "./routes/pedidos.js";
+import { SimuladorPagamentos } from "./services/pagamentos/simulador.js";
+import { verificarConfiguracaoLimitesPagamento } from "./services/pagamentos/limites.js";
 
 export function criarAplicacao() {
+  verificarConfiguracaoLimitesPagamento();
+  const provedorConfigurado = process.env.PAGAMENTOS_PROVEDOR ??
+    (process.env.NODE_ENV === "production" ? "" : "simulador");
+  if (process.env.NODE_ENV === "production" && provedorConfigurado === "simulador") {
+    throw new Error("SIMULADOR_PAGAMENTOS_PROIBIDO_EM_PRODUCAO");
+  }
+  if (provedorConfigurado && provedorConfigurado !== "simulador") {
+    throw new Error("PROVEDOR_PAGAMENTO_NAO_IMPLEMENTADO");
+  }
   const app = Fastify({
     logger: true,
   });
+
+  const simulador = provedorConfigurado === "simulador"
+    ? new SimuladorPagamentos()
+    : null;
+  app.decorate("simuladorPagamentos", simulador);
+  app.decorate("provedorPagamentos", simulador);
 
   app.register(prismaPlugin);
   app.register(limpezaReferenciasEnderecoPlugin);
