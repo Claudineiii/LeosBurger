@@ -5,7 +5,7 @@
 
 ## 1. Visão do produto
 
-O LEOSBurger permite consultar cardápio e fazer pedidos online. O backend possui catálogo, autenticação, administração, endereços, checkout, pedidos transacionais e tentativas de pagamento com simulador de desenvolvimento/testes. Provedor real PIX, operações completas de pedidos/reembolsos e dashboard continuam futuros.
+O LEOSBurger permite consultar cardápio e fazer pedidos online. O backend possui catálogo, autenticação, administração, endereços, checkout, pedidos transacionais, tentativas de pagamento simuladas em desenvolvimento/testes e administração de status/cancelamentos/reembolsos manuais (Sprint 15). Provedor real PIX e dashboard continuam futuros.
 
 ## 2. Arquitetura lógica atual e desejada
 
@@ -85,7 +85,7 @@ A sessão é stateless: o JWT fica em cookie `HttpOnly`, `SameSite=Strict`, `Pat
 
 ### Banco, transações e confiabilidade
 
-- O schema atual possui 17 modelos/tabelas após a Sprint 11; essa contagem não é limite obrigatório. Tentativas de pagamento e reembolsos seguem aprovados para expansão futura. Não criar entidade persistente adicional sem justificativa técnica e autorização.
+- O schema atual possui 19 modelos/tabelas após a Sprint 15; essa contagem não é limite obrigatório. Não criar entidade persistente adicional sem justificativa técnica e autorização.
 - Não criar tabela de carrinho, estoque ou sessão. Cache Redis não será adicionado; Redis é inicialmente para rate limiting compartilhado em produção.
 - A criação do pedido e linhas/snapshots é atômica. Tentativas são persistidas separadamente e idempotentes; retries não clonam pedido.
 - Mudanças de pagamento/cancelamento/reembolso usam transações e compare-and-set para impedir dupla confirmação e inconsistência. Evento financeiro tardio mantém a referência à tentativa original.

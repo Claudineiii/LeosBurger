@@ -8,8 +8,8 @@
 | 11 | Checkout prévio, adicionais, cupons, Geoapify/faixas | Implementada localmente; antes de produção faltam origem e preços comerciais, validação real do critério/quota/termos Geoapify e rate limit para validação pública. |
 | 12 | Criação transacional, snapshots, token visitante | Concluída; migration aplicada ao banco de teste. |
 | 13 | Tentativas, contrato genérico e simulador de pagamento | Implementada localmente; sem Redis compartilhado ou provedor real. |
-| 14 | Histórico, recuperação e operações de visitante | Após 12–13; token válido enquanto pedido ativo e por 30 dias após conclusão/cancelamento, recuperação número+telefone e permissões limitadas. |
-| 15 | Administração, cancelamento e reembolso | Após 12–14; cliente/visitante solicita, ADMIN decide; reembolso é registro individual. |
+| 14 | Histórico, recuperação e operações de visitante | Concluída; token válido enquanto pedido ativo e por 30 dias após conclusão/cancelamento, recuperação número+telefone e permissões limitadas. |
+| 15 | Administração, cancelamento e reembolso | Implementada localmente e validada em `leosburger_test`; cliente/visitante solicita, ADMIN decide; reembolso é registro individual. |
 | 16 | Dashboard e fechamentos | Após 13–15; `America/Sao_Paulo`, semestres civis. |
 | 17 | Segurança, integração e desempenho | Após fluxos principais; Redis compartilhado, fail-closed e limites propostos para aprovação. |
 | 18 | Preparação de produção | Última; não é integração PIX real nem deploy. |
@@ -18,7 +18,7 @@ O backend está em `src/` na raiz. Não existe `backend/src/` nem pasta frontend
 
 ## Modelo de dados: atual e proposta
 
-O schema real possui 18 modelos/tabelas após a Sprint 13. `tentativas_pagamento` e `Pedido.statusFinanceiro` foram adicionados; `reembolsos` segue para Sprint 15. `Pedido` guarda snapshots de checkout, tracking e idempotência; `ItemPedido` guarda nome/preço, adicionais e composição histórica.
+O schema real possui 19 modelos/tabelas após a Sprint 15. `tentativas_pagamento`, `reembolsos` e `Pedido.statusFinanceiro` estão implementados. `Pedido` guarda snapshots de checkout, tracking e idempotência; `ItemPedido` guarda nome/preço, adicionais e composição histórica.
 
 Os diagramas registram decisões aprovadas e fluxos planejados; use o estado por Sprint e o código para distinguir o que está implementado.
 

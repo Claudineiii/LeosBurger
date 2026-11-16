@@ -116,11 +116,15 @@ Cobertura implementada para tentativa PIX inicial e segunda cobrança idempotent
 
 ### Sprint 15 — `tests/api/pedidos-admin.test.ts`
 
-- Transições operacionais ADMIN válidas/inválidas e uso exato de `PREPARANDO`; cliente/visitante não altera status.
-- Cliente autenticado ou visitante com token solicita cancelamento com motivo; ADMIN decide; status só muda na aprovação. Pedido `CONCLUIDO` nunca passa a `CANCELADO`.
-- PIX não pago cancela sem reembolso; PIX pago cria registro pendente individual, iniciado/confirmado manualmente por ADMIN; presencial pago registra devolução manual/valor/ator/data.
-- Vários registros de reembolso por pedido e vínculo à tentativa original; estrutura permite parcial, API não.
-- Evento tardio em pedido cancelado: tentativa `PAGO`, pedido `REEMBOLSO_PENDENTE` financeiramente e `CANCELADO` operacionalmente. Duplicidade sem reembolso automático. Cancelamento não equivale a reembolso concluído.
+- Consultas administrativas com filtro, autorização ADMIN e DTO sem hash/token; transições válidas/inválidas, modalidade entrega/retirada, `PREPARANDO`, terminais, histórico atômico e concorrência compare-and-set.
+- Solicitação autenticada e de visitante, decisão ADMIN de aprovação/rejeição, replay idempotente e rejeição de decisão conflitante; cancelamento não conclui o reembolso.
+- Cancelamento PIX não pago preserva status/auditoria da tentativa e não cria reembolso; cancelamento pago gera registro auditável da necessidade por transação sem estorno automático.
+- Pagamento presencial: autorização, vínculo ao pedido/tentativa, confirmação e replay; a cobertura existente em `tests/api/pagamentos.test.ts` inclui recusa e bloqueio de PIX manual.
+- Reembolso PIX: rejeição sem pagamento e sem início prévio, início e confirmações simultâneas idempotentes, tentativa original, rejeição de parcial, saldo/limite concorrente, múltiplas ocorrências por pedido e atualização financeira. Devolução presencial separada e método PIX incompatível rejeitado.
+- Pagamentos: evento PIX tardio antes/depois de expiração, cancelamento concorrente com confirmação, confirmação simultânea de tentativas distintas, evento duplicado concorrente, auditoria ADMIN de pagamentos duplicados; expiração antecipada do provedor e falha/recusa da segunda tentativa não cancelam o pedido.
+- `tests/banco/integridade.test.ts` cobre constraint de valor positivo.
+
+Validação em 16/11/2026: suíte completa com 31 arquivos/221 testes aprovados; build TypeScript, `npx prisma validate`, estado das migrations e `git diff --check` passaram. Todas as 9 migrations estão aplicadas exclusivamente em `leosburger_test`. Os wrappers npm falham antes do script porque `tsx` importa `node:os.userInfo()`, que neste ambiente retorna `uv_os_get_passwd returned ENOMEM`; o Vitest direto e o Prisma CLI foram executados após validação de loopback e nome exato do banco.
 
 ## Dashboard e auditoria — Sprints 16–17
 

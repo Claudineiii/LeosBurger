@@ -1,6 +1,6 @@
 # Sprint 15 — Administração, cancelamentos e reembolsos
 
-**Estado:** Planejada; depende de pedidos/tentativas das Sprints 12–14.
+**Estado:** Implementada localmente e validada no banco isolado `leosburger_test` (16/11/2026). Sem commit.
 
 ## Objetivo
 
@@ -58,6 +58,20 @@ O enum real atual já usa `PREPARANDO`; não criar renomeação para `EM_PREPARA
 - Persistir solicitação/decisão como eventos estruturados no histórico do pedido; migration da tabela `reembolsos` é obrigatória para preservar cada ocorrência e permitir múltiplos registros por pedido.
 
 ## Passos, testes e aceite
+
+### Implementação realizada
+
+- Rotas administrativas registradas em `src/routes/pedidos-admin.ts`; regras transacionais em `src/services/pedidos-admin.ts`.
+- Transições usam a matriz acima, `statusAtualEsperado` como compare-and-set e append ao histórico dentro da transação. ADMIN é obrigatório. Confirmação `PENDENTE → CONFIRMADO` não depende do estado financeiro.
+- Solicitações de cancelamento são eventos identificados no histórico do pedido; a decisão registra ADMIN, resultado, data e justificativa. Rejeição não muda status; aprovações repetidas com a mesma decisão são idempotentes e decisões incompatíveis são rejeitadas.
+- Cancelamentos de pedidos com pagamentos confirmados registram `REEMBOLSO_NECESSARIO` por tentativa paga no histórico, com referência da transação, valor, origem e responsável quando administrativo. O evento é consultável no detalhe ADMIN; o registro operacional de reembolso continua sendo iniciado manualmente, sem estorno automático.
+- Confirmação/recusa presencial reutiliza o serviço financeiro e impede confirmação manual PIX.
+- Migration incremental `20261116120000_admin_reembolsos_sprint15` cria `reembolsos`, enums, FKs, índices, idempotência e checks de valor/estado. Aplicada somente a `leosburger_test`.
+- Reembolsos PIX iniciam pendentes e exigem confirmação manual integral; devolução presencial é uma ocorrência confirmada separada. Eventos PIX tardios e pagamentos duplicados ficam auditados sem reembolso automático.
+- A expiração do pedido atualiza o estado financeiro se já houve recebimento. Evento `EXPIRADO` antes do prazo calculado pelo backend é auditado e não encerra a tentativa nem cancela o pedido; falha/recusa da segunda tentativa tampouco cancela.
+- Testes da Sprint 15 cobrem autorização, consultas, transições/modo de entrega e retirada, compare-and-set concorrente, solicitação/decisão e replay, pagamento presencial e ciclo/replay de reembolso.
+
+Validação em 16/11/2026: suíte completa, 31 arquivos/221 testes aprovados; build TypeScript, `prisma validate`, `prisma migrate status` (9 migrations aplicadas) e `git diff --check` aprovados. `npm test` e `npm run db:test:migrate` falham antes dos scripts por `tsx`/`node:os.userInfo()` (`uv_os_get_passwd returned ENOMEM`); o teste direto Vitest e a consulta de migrations foram executados com guarda explícita para `leosburger_test`.
 
 1. Implementar matriz operacional exatamente com `PREPARANDO`; todas as transições operacionais administrativas são controladas por ADMIN e independentes do estado financeiro, exceto cancelamento automático aprovado por expiração da segunda tentativa; rejeitar transições inválidas e sempre bloquear conclusão → cancelamento.
 2. Implementar solicitação de cliente/visitante e decisão ADMIN; status só muda após aprovação e dentro dos limites válidos.

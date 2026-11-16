@@ -2,9 +2,9 @@
 
 ## 1. Estado atual e regra de evolução
 
-O schema real está em `prisma/schema.prisma` e atualmente define 18 modelos/tabelas após a Sprint 13. Essa contagem descreve o estado atual, não é um limite arquitetural.
+O schema real está em `prisma/schema.prisma` e atualmente define 19 modelos/tabelas após a Sprint 15. Essa contagem descreve o estado atual, não é um limite arquitetural.
 
-As tabelas de cupons, elegibilidade, usos de cupom, faixas de frete, referências temporárias, cache e controle Geoapify foram criadas por migrations incrementais. A Sprint 12 acrescentou colunas e constraints aditivas em `pedidos`; a Sprint 13 adicionou estado financeiro e `tentativas_pagamento`. Reembolsos continuam para a Sprint 15.
+As tabelas de cupons, elegibilidade, usos de cupom, faixas de frete, referências temporárias, cache e controle Geoapify foram criadas por migrations incrementais. A Sprint 12 acrescentou colunas e constraints aditivas em `pedidos`; a Sprint 13 adicionou estado financeiro e `tentativas_pagamento`; a Sprint 15 adicionou `reembolsos`.
 
 Uma nova tabela é apropriada quando representar entidade/responsabilidade persistente e garantir integridade referencial. As migrations das Sprints 11–13 são aditivas e não removem nem alteram as 11 CHECK constraints da migration definitiva. As migrations novas foram aplicadas somente ao banco isolado `leosburger_test`; não foram aplicadas ao banco de desenvolvimento.
 
@@ -44,11 +44,11 @@ As estruturas abaixo já existem no schema e em migrations. Reembolsos seguem ap
 | `controle_geoapify` | Reserva agregada de quota e intervalo mínimo entre chamadas externas. |
 | `reservas_cache_geoapify` | Lock/reserva com expiração para coalescer cache misses concorrentes entre instâncias. |
 | `tentativas_pagamento` | Cobrança inicial e no máximo uma tentativa adicional por pedido, ligadas à mesma compra, com idempotência, prazo e preservação de eventos tardios/duplicados. |
-| `reembolsos` | Um registro por ocorrência, ligado ao pedido e à tentativa/transação original; suporta vários registros por pedido e prepara valor parcial sem habilitá-lo no MVP. |
+| `reembolsos` | Uma ocorrência individual ligada ao pedido e, quando aplicável, à tentativa original; múltiplas ocorrências por pedido, trilha de início/confirmação, e suporte estrutural a parcial sem habilitá-lo na API. |
 
 Não criar tabela de adicionais: manter configuração JSON em `Item.adicionais`. Não criar tabela de carrinho, cache, sessão ou histórico operacional genérico sem necessidade comprovada. Cancelamento/reembolso pode usar eventos tipados no JSONB `Pedido.historicoStatus`; somente propor outra entidade se testes/requisitos demonstrarem que o histórico do pedido não é suficiente.
 
-`Pedido.status` continua operacional. `Pedido.statusFinanceiro` começa `PENDENTE`, passa a `PAGO` ao registrar recebimento e a `REEMBOLSO_PENDENTE` quando um pagamento chega após cancelamento. `TentativaPagamento` conserva método, valor, número, idempotência, timestamps, identificador/transação externa e listas JSONB de eventos/auditoria. As migrations impõem número 1/2, método PIX obrigatório na tentativa 2, prazo PIX exatamente igual a cinco minutos, unicidade por pedido/número/chave e índice parcial para uma cobrança PIX pendente por pedido.
+`Pedido.status` continua operacional. `Pedido.statusFinanceiro` inclui `PENDENTE`, `PAGO`, `REEMBOLSO_PENDENTE` e `REEMBOLSADO`; continua independente do status operacional. `Reembolso` armazena método, valor, estado, motivo, administradores responsáveis, timestamps, chaves de idempotência e dados de auditoria. Constraints garantem valor positivo, consistência entre estado e confirmação, valor confirmado não superior ao solicitado e vínculo de tentativa para PIX. A migration `20261116120000_admin_reembolsos_sprint15` é incremental e preserva as CHECKs anteriores; aplicada somente em `leosburger_test`.
 
 ## 4. Contrato dos adicionais no JSON
 

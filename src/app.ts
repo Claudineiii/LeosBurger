@@ -17,6 +17,7 @@ import { cuponsAdminRoutes } from "./routes/cupons-admin.js";
 import { faixasFreteAdminRoutes } from "./routes/faixas-frete-admin.js";
 import { checkoutPreviewRoutes } from "./routes/checkout-preview.js";
 import { pedidosRoutes } from "./routes/pedidos.js";
+import { pedidosAdminRoutes } from "./routes/pedidos-admin.js";
 import { SimuladorPagamentos } from "./services/pagamentos/simulador.js";
 import { verificarConfiguracaoLimitesPagamento } from "./services/pagamentos/limites.js";
 
@@ -66,6 +67,7 @@ export function criarAplicacao() {
   app.register(checkoutEnderecoVisitanteRoutes);
   app.register(checkoutPreviewRoutes);
   app.register(pedidosRoutes);
+  app.register(pedidosAdminRoutes);
   app.register(catalogoAdminRoutes);
   app.register(combosAdminRoutes);
   app.register(cuponsAdminRoutes);

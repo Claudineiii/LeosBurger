@@ -114,6 +114,43 @@ describe("Integridade do banco de dados", () => {
     }
   });
 
+  it("exige valor positivo para cada ocorrência de reembolso", async () => {
+    const usuario = await criarUsuario();
+    const pedido = await criarPedido();
+    const agora = new Date();
+    const tentativa = await prisma.tentativaPagamento.create({
+      data: {
+        pedidoId: pedido.id,
+        metodo: MetodoPagamento.PIX,
+        numeroTentativa: 1,
+        status: "PAGO",
+        valor: 20,
+        chaveIdempotencia: `integridade:${sufixo()}`,
+        confirmadaEm: agora,
+        expiraEm: new Date(agora.getTime() + 5 * 60_000),
+        encerradoEm: agora,
+      },
+    });
+    try {
+      await expect(
+        prisma.reembolso.create({
+          data: {
+            pedidoId: pedido.id,
+            tentativaPagamentoId: tentativa.id,
+            metodo: "PIX",
+            valor: 0,
+            motivo: "Valor inválido",
+            chaveIdempotencia: `integridade:${sufixo()}`,
+            iniciadoPorAdminId: usuario.id,
+          },
+        }),
+      ).rejects.toThrow();
+    } finally {
+      await prisma.pedido.delete({ where: { id: pedido.id } });
+      await prisma.usuario.delete({ where: { id: usuario.id } });
+    }
+  });
+
   it("rejeita item e combo preenchidos simultaneamente", async () => {
     const categoria = await criarCategoria();
     const item = await criarItem(categoria.id);

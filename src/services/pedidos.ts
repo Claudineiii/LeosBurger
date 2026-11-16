@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import {
   MetodoPagamento,
   Prisma,
@@ -863,13 +863,23 @@ export async function registrarSolicitacaoCancelamento(
       ? (pedido.historicoStatus as Prisma.InputJsonArray)
       : [];
 
-    const jaSolicitado = historicoAtual.some(
-      (h) => typeof h === "object" && h !== null && "motivo" in h && h.motivo === "SOLICITACAO_CANCELAMENTO_CLIENTE",
+    const eventos = historicoAtual.filter(
+      (entry): entry is Prisma.InputJsonObject => Boolean(entry) && typeof entry === "object" && !Array.isArray(entry),
     );
-    if (jaSolicitado) {
+    const decisoes = new Set(
+      eventos
+        .filter((entry) => entry.tipo === "DECISAO_SOLICITACAO_CANCELAMENTO" && typeof entry.solicitacaoId === "string")
+        .map((entry) => entry.solicitacaoId as string),
+    );
+    const existePendente = eventos.some(
+      (entry) => entry.tipo === "SOLICITACAO_CANCELAMENTO" &&
+        (typeof entry.solicitacaoId !== "string" || !decisoes.has(entry.solicitacaoId)),
+    );
+    if (existePendente) {
       throw new Error("SOLICITACAO_CANCELAMENTO_JA_REGISTRADA");
     }
 
+    const solicitacaoId = randomUUID();
     const atualizado = await tx.pedido.update({
       where: { id: pedido.id },
       data: {
@@ -877,7 +887,10 @@ export async function registrarSolicitacaoCancelamento(
           ...historicoAtual,
           {
             tipo: "SOLICITACAO_CANCELAMENTO",
+            solicitacaoId,
             solicitante: input.solicitante.tipo,
+            solicitanteUsuarioId: input.solicitante.usuarioId ?? null,
+            estado: "PENDENTE",
             motivo: "SOLICITACAO_CANCELAMENTO_CLIENTE",
             justificativa: input.motivo.trim(),
             registradoEm: agora.toISOString(),
@@ -888,6 +901,7 @@ export async function registrarSolicitacaoCancelamento(
 
     return {
       sucesso: true,
+      solicitacaoId,
       pedidoId: atualizado.id,
       numero: atualizado.numero,
       status: atualizado.status,

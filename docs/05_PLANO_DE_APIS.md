@@ -218,6 +218,10 @@ Limites de cobrança são configurados por `PAGAMENTOS_RATE_LIMIT_COBRANCA_INICI
 - `POST /admin/pedidos/:id/reembolsos` registra início manual de reembolso PIX; `PATCH /admin/pedidos/:id/reembolsos/:reembolsoId` registra confirmação e responsável/data. Para devolução presencial, registrar cada ocorrência manual com valor, ADMIN responsável e data. Um pedido pode ter vários registros; reembolso parcial fica desabilitado no MVP.
 - Pagamento tardio após pedido cancelado deixa a tentativa original `PAGO`, o estado financeiro do pedido `REEMBOLSO_PENDENTE` e mantém `status=CANCELADO`. Se duas tentativas forem pagas, registrar ocorrência duplicada e encaminhar à análise ADMIN, sem reembolso automático.
 - Cada decisão/transição é auditada e concorrência gera `409`; endpoints não alteram snapshots financeiros.
+- A listagem valida filtros de status operacional/financeiro, método, modalidade, número e paginação; ordenação estável por data e número. Detalhes e listas usam `select` explícito e não incluem hashes/tokens.
+- `PATCH /admin/pedidos/:id/status` exige o status atual esperado no body, para rejeitar decisões concorrentes obsoletas (`409`).
+- `POST /admin/pedidos/:id/reembolsos` exige `Idempotency-Key`, tentativa PIX paga e valor integral disponível. `PATCH` exige chave idempotente de confirmação; parcial é rejeitado. `POST /admin/pedidos/:id/devolucoes-presenciais` registra devolução integral em ocorrência própria para pagamento presencial.
+- A solicitação de cancelamento retorna o identificador `solicitacaoId`, que identifica o evento na rota de decisão.
 
 ## 12. Etapa J — Dashboard e segurança (Sprints 16–18)
 

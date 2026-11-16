@@ -9,6 +9,7 @@ import {
   processarEventoPagamento,
   solicitarSegundaTentativa,
 } from "../../src/services/pagamentos/tentativas.js";
+import { transicionarStatusPedido } from "../../src/services/pedidos-admin.js";
 
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 
@@ -114,6 +115,7 @@ describe("tentativas de pagamento", () => {
         where: { id: primeira.id },
         data: { status: "RECUSADO", encerradoEm: new Date() },
       });
+      const confirmadaEm = new Date(Date.now() - 600_000);
       const segunda = await app.prisma.tentativaPagamento.create({
         data: {
           pedidoId: pedido.id,
@@ -122,8 +124,8 @@ describe("tentativas de pagamento", () => {
           status: "PENDENTE",
           valor: 20,
           chaveIdempotencia: `teste:${randomUUID()}`,
-          confirmadaEm: new Date(Date.now() - 600_000),
-          expiraEm: new Date(Date.now() - 300_000),
+          confirmadaEm,
+          expiraEm: new Date(confirmadaEm.getTime() + 300_000),
         },
       });
 
@@ -136,6 +138,166 @@ describe("tentativas de pagamento", () => {
         { status: "CANCELADO", motivo: "EXPIRACAO_SEGUNDA_TENTATIVA_PIX" },
       ]);
       expect(tentativaAtualizada.status).toBe("EXPIRADO");
+      expect(pedidoAtualizado.statusFinanceiro).toBe("PENDENTE");
+      expect(await app.prisma.reembolso.count({ where: { pedidoId: pedido.id } })).toBe(0);
+    } finally {
+      await app.prisma.pedido.delete({ where: { id: pedido.id } });
+    }
+  });
+
+  it("ao expirar a segunda tentativa após pagamento tardio da primeira, cancela e mantém reembolso pendente", async () => {
+    await app.ready();
+    const pedido = await app.prisma.pedido.create({
+      data: {
+        tipoEntrega: "RETIRADA",
+        metodoPagamento: MetodoPagamento.PIX,
+        nomeClienteHistorico: "Pagamento tardio antes da expiração",
+        telefoneClienteHistorico: "19999991234",
+        subtotal: 20,
+        desconto: 0,
+        taxaEntrega: 0,
+        total: 20,
+      },
+    });
+    try {
+      const primeira = await iniciarTentativaInicial({
+        prisma: app.prisma,
+        provedor: app.provedorPagamentos,
+        pedidoId: pedido.id,
+        chavePedido: randomUUID(),
+        identificadorRateLimit: `ip:${randomUUID()}`,
+      });
+      await app.prisma.tentativaPagamento.update({
+        where: { id: primeira.id },
+        data: { status: "FALHOU", encerradoEm: new Date() },
+      });
+      const confirmadaEm = new Date(Date.now() - 240_000);
+      const segunda = await app.prisma.tentativaPagamento.create({
+        data: {
+          pedidoId: pedido.id,
+          metodo: MetodoPagamento.PIX,
+          numeroTentativa: 2,
+          status: "PENDENTE",
+          valor: 20,
+          chaveIdempotencia: `teste:${randomUUID()}`,
+          confirmadaEm,
+          expiraEm: new Date(confirmadaEm.getTime() + 300_000),
+        },
+      });
+      const eventoTardio = (await app.simuladorPagamentos!.criarEvento({ tentativaId: primeira.id, cenario: "PAGO" }))[0]!;
+      await processarEventoPagamento(app.prisma, app.simuladorPagamentos!, eventoTardio);
+
+      const antes = await app.prisma.pedido.findUniqueOrThrow({ where: { id: pedido.id } });
+      expect(antes.status).toBe("PENDENTE");
+      expect(antes.statusFinanceiro).toBe("PAGO");
+
+      await app.prisma.tentativaPagamento.update({
+        where: { id: segunda.id },
+        data: (() => {
+          const confirmadaEmExpirada = new Date(Date.now() - 301_000);
+          return {
+            confirmadaEm: confirmadaEmExpirada,
+            expiraEm: new Date(confirmadaEmExpirada.getTime() + 300_000),
+          };
+        })(),
+      });
+      await expirarTentativasPixVencidas(app.prisma);
+
+      const depois = await app.prisma.pedido.findUniqueOrThrow({ where: { id: pedido.id } });
+      const historico = depois.historicoStatus as Array<Record<string, unknown>>;
+      expect(depois.status).toBe("CANCELADO");
+      expect(depois.statusFinanceiro).toBe("REEMBOLSO_PENDENTE");
+      expect(historico).toContainEqual(expect.objectContaining({
+        tipo: "REEMBOLSO_NECESSARIO",
+        tentativaId: primeira.id,
+        origem: "EXPIRACAO_SEGUNDA_TENTATIVA_PIX",
+      }));
+      expect(await app.prisma.reembolso.count({ where: { pedidoId: pedido.id } })).toBe(0);
+    } finally {
+      await app.prisma.pedido.delete({ where: { id: pedido.id } });
+    }
+  });
+
+  it.each(["FALHOU", "RECUSADO"] as const)("falha/recusa explícita da segunda tentativa (%s) não cancela o pedido", async (cenario) => {
+    await app.ready();
+    const pedido = await app.prisma.pedido.create({
+      data: {
+        tipoEntrega: "RETIRADA",
+        metodoPagamento: MetodoPagamento.PIX,
+        nomeClienteHistorico: "Recusa tentativa dois",
+        telefoneClienteHistorico: "19999991234",
+        subtotal: 20,
+        desconto: 0,
+        taxaEntrega: 0,
+        total: 20,
+      },
+    });
+    try {
+      const confirmadaEm = new Date();
+      const tentativa = await app.prisma.tentativaPagamento.create({
+        data: {
+          pedidoId: pedido.id,
+          metodo: MetodoPagamento.PIX,
+          numeroTentativa: 2,
+          status: "PENDENTE",
+          valor: 20,
+          chaveIdempotencia: `teste:${randomUUID()}`,
+          confirmadaEm,
+          expiraEm: new Date(confirmadaEm.getTime() + 300_000),
+        },
+      });
+      const evento = (await app.simuladorPagamentos!.criarEvento({ tentativaId: tentativa.id, cenario }))[0]!;
+      await processarEventoPagamento(app.prisma, app.simuladorPagamentos!, evento);
+
+      const tentativaAtualizada = await app.prisma.tentativaPagamento.findUniqueOrThrow({ where: { id: tentativa.id } });
+      const pedidoAtualizado = await app.prisma.pedido.findUniqueOrThrow({ where: { id: pedido.id } });
+      expect(tentativaAtualizada.status).toBe(cenario);
+      expect(pedidoAtualizado.status).toBe("PENDENTE");
+      expect(pedidoAtualizado.statusFinanceiro).toBe("PENDENTE");
+      expect(await app.prisma.reembolso.count({ where: { pedidoId: pedido.id } })).toBe(0);
+    } finally {
+      await app.prisma.pedido.delete({ where: { id: pedido.id } });
+    }
+  });
+
+  it("ignora expiração do provedor antes do prazo de cinco minutos", async () => {
+    await app.ready();
+    const pedido = await app.prisma.pedido.create({
+      data: {
+        tipoEntrega: "RETIRADA",
+        metodoPagamento: MetodoPagamento.PIX,
+        nomeClienteHistorico: "Expiração antecipada",
+        telefoneClienteHistorico: "19999991234",
+        subtotal: 20,
+        desconto: 0,
+        taxaEntrega: 0,
+        total: 20,
+      },
+    });
+    try {
+      const confirmadaEm = new Date(Date.now() - 240_000);
+      const tentativa = await app.prisma.tentativaPagamento.create({
+        data: {
+          pedidoId: pedido.id,
+          metodo: MetodoPagamento.PIX,
+          numeroTentativa: 2,
+          status: "PENDENTE",
+          valor: 20,
+          chaveIdempotencia: `teste:${randomUUID()}`,
+          confirmadaEm,
+          expiraEm: new Date(confirmadaEm.getTime() + 300_000),
+        },
+      });
+      const evento = (await app.simuladorPagamentos!.criarEvento({ tentativaId: tentativa.id, cenario: "EXPIRADO" }))[0]!;
+      await processarEventoPagamento(app.prisma, app.simuladorPagamentos!, evento);
+
+      const tentativaAtualizada = await app.prisma.tentativaPagamento.findUniqueOrThrow({ where: { id: tentativa.id } });
+      const pedidoAtualizado = await app.prisma.pedido.findUniqueOrThrow({ where: { id: pedido.id } });
+      expect(tentativaAtualizada.status).toBe("PENDENTE");
+      expect(tentativaAtualizada.auditoria).toEqual(expect.arrayContaining([
+        expect.objectContaining({ tipo: "EXPIRACAO_PIX_ANTECIPADA_IGNORADA" }),
+      ]));
+      expect(pedidoAtualizado.status).toBe("PENDENTE");
     } finally {
       await app.prisma.pedido.delete({ where: { id: pedido.id } });
     }
@@ -220,8 +382,10 @@ describe("tentativas de pagamento", () => {
         dataEvento: new Date(Date.now() - 360_000),
         idEvento: randomUUID(),
       });
-      await processarEventoPagamento(app.prisma, app.simuladorPagamentos!, eventos[0]);
-      await processarEventoPagamento(app.prisma, app.simuladorPagamentos!, eventos[1]);
+      await Promise.all([
+        processarEventoPagamento(app.prisma, app.simuladorPagamentos!, eventos[0]),
+        processarEventoPagamento(app.prisma, app.simuladorPagamentos!, eventos[1]),
+      ]);
 
       const pedidoAtualizado = await app.prisma.pedido.findUniqueOrThrow({ where: { id: pedido.id } });
       const tentativaAtualizada = await app.prisma.tentativaPagamento.findUniqueOrThrow({ where: { id: tentativa.id } });
@@ -233,6 +397,58 @@ describe("tentativas de pagamento", () => {
         { tipo: "EVENTO_RECEBIDO" },
         { tipo: "EVENTO_DUPLICADO" },
       ]);
+    } finally {
+      await app.prisma.pedido.delete({ where: { id: pedido.id } });
+    }
+  });
+
+  it("serializa cancelamento administrativo concorrente com confirmação PIX", async () => {
+    await app.ready();
+    const pedido = await app.prisma.pedido.create({
+      data: {
+        tipoEntrega: "RETIRADA",
+        metodoPagamento: MetodoPagamento.PIX,
+        nomeClienteHistorico: "Concorrência cancelamento e PIX",
+        telefoneClienteHistorico: "19999991234",
+        subtotal: 20,
+        desconto: 0,
+        taxaEntrega: 0,
+        total: 20,
+      },
+    });
+    try {
+      const tentativa = await iniciarTentativaInicial({
+        prisma: app.prisma,
+        provedor: app.provedorPagamentos,
+        pedidoId: pedido.id,
+        chavePedido: randomUUID(),
+        identificadorRateLimit: `ip:${randomUUID()}`,
+      });
+      const evento = (await app.simuladorPagamentos!.criarEvento({ tentativaId: tentativa.id, cenario: "PAGO" }))[0]!;
+      await Promise.all([
+        processarEventoPagamento(app.prisma, app.simuladorPagamentos!, evento),
+        transicionarStatusPedido({
+          prisma: app.prisma,
+          pedidoId: pedido.id,
+          adminId: randomUUID(),
+          statusAtualEsperado: StatusPedido.PENDENTE,
+          proximoStatus: StatusPedido.CANCELADO,
+          motivo: "Cancelamento concorrente de teste.",
+        }),
+      ]);
+
+      const atualizado = await app.prisma.pedido.findUniqueOrThrow({ where: { id: pedido.id } });
+      const pagamento = await app.prisma.tentativaPagamento.findUniqueOrThrow({ where: { id: tentativa.id } });
+      expect(atualizado.status).toBe("CANCELADO");
+      expect(atualizado.statusFinanceiro).toBe("REEMBOLSO_PENDENTE");
+      expect(pagamento.status).toBe("PAGO");
+      expect(atualizado.historicoStatus).toEqual(expect.arrayContaining([
+        expect.objectContaining({ tipo: "TRANSICAO_STATUS_ADMINISTRATIVA", status: "CANCELADO" }),
+      ]));
+      expect(atualizado.historicoStatus).toEqual(expect.arrayContaining([
+        expect.objectContaining({ tipo: "REEMBOLSO_NECESSARIO", tentativaId: tentativa.id }),
+      ]));
+      expect(await app.prisma.reembolso.count({ where: { pedidoId: pedido.id } })).toBe(0);
     } finally {
       await app.prisma.pedido.delete({ where: { id: pedido.id } });
     }
@@ -268,6 +484,13 @@ describe("tentativas de pagamento", () => {
         resultado: "PAGO",
       });
       expect(atualizada.status).toBe("PAGO");
+      const repetida = await confirmarPagamentoPresencial({
+        prisma: app.prisma,
+        tentativaId: tentativa.id,
+        adminId: randomUUID(),
+        resultado: "PAGO",
+      });
+      expect(repetida.id).toBe(atualizada.id);
       expect(atualizada.auditoria).toMatchObject([
         { tipo: "CONFIRMACAO_PRESENCIAL_ADMIN", resultado: "PAGO" },
       ]);
@@ -327,8 +550,10 @@ describe("tentativas de pagamento", () => {
         tentativaId: primeira.id,
         cenario: "PAGO",
       });
-      await processarEventoPagamento(app.prisma, app.simuladorPagamentos!, pagamentoSegunda[0]!);
-      await processarEventoPagamento(app.prisma, app.simuladorPagamentos!, pagamentoPrimeira[0]!);
+      await Promise.all([
+        processarEventoPagamento(app.prisma, app.simuladorPagamentos!, pagamentoSegunda[0]!),
+        processarEventoPagamento(app.prisma, app.simuladorPagamentos!, pagamentoPrimeira[0]!),
+      ]);
 
       const tentativas = await app.prisma.tentativaPagamento.findMany({
         where: { pedidoId: pedido.id },
@@ -336,8 +561,15 @@ describe("tentativas de pagamento", () => {
       });
       expect(tentativas.map(({ status }) => status)).toEqual(["PAGO", "PAGO"]);
       expect(JSON.stringify(tentativas)).toContain("OUTRA_COBRANCA_DO_PEDIDO_TAMBEM_PAGA");
-      expect((await app.prisma.pedido.findUniqueOrThrow({ where: { id: pedido.id } })).statusFinanceiro)
-        .toBe("PAGO");
+      const pedidoAtualizado = await app.prisma.pedido.findUniqueOrThrow({ where: { id: pedido.id } });
+      expect(pedidoAtualizado.statusFinanceiro).toBe("REEMBOLSO_PENDENTE");
+      expect(pedidoAtualizado.status).toBe("PENDENTE");
+      expect(pedidoAtualizado.historicoStatus).toContainEqual(expect.objectContaining({
+        tipo: "PAGAMENTO_DUPLICADO",
+        tentativaId: expect.any(String),
+        outraTentativaId: expect.any(String),
+      }));
+      expect(await app.prisma.reembolso.count({ where: { pedidoId: pedido.id } })).toBe(0);
     } finally {
       await app.prisma.pedido.delete({ where: { id: pedido.id } });
     }

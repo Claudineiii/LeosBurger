@@ -4,6 +4,7 @@ import {
   Prisma,
   StatusFinanceiroPedido,
   StatusPedido,
+  StatusReembolso,
   StatusTentativaPagamento,
   type PrismaClient,
 } from "@prisma/client";
@@ -75,6 +76,58 @@ async function bloquearPedido(tx: Transacao, pedidoId: string) {
   `;
 }
 
+async function financeiroELancamentosDeReembolsoAposCancelamento(
+  tx: Transacao,
+  pedidoId: string,
+  causa: string,
+  agora: Date,
+) {
+  const pagos = await tx.tentativaPagamento.findMany({
+    where: { pedidoId, status: StatusTentativaPagamento.PAGO },
+    select: { id: true, valor: true, transacaoExterna: true },
+    orderBy: { numeroTentativa: "asc" },
+  });
+  if (pagos.length === 0) {
+    return { statusFinanceiro: null, eventos: [] as Prisma.InputJsonObject[] };
+  }
+  const devolvidosPorTentativa = await tx.reembolso.findMany({
+    where: {
+      tentativaPagamentoId: { in: pagos.map((item) => item.id) },
+      status: StatusReembolso.CONFIRMADO,
+    },
+    select: { tentativaPagamentoId: true, valorConfirmado: true },
+  });
+  const totalPago = pagos.reduce((total, item) => total.add(item.valor), new Prisma.Decimal(0));
+  const totalDevolvido = devolvidosPorTentativa.reduce(
+    (total, item) => total.add(item.valorConfirmado ?? 0),
+    new Prisma.Decimal(0),
+  );
+  const totalPorTentativa = new Map<string, Prisma.Decimal>();
+  for (const reembolso of devolvidosPorTentativa) {
+    if (!reembolso.tentativaPagamentoId) continue;
+    totalPorTentativa.set(
+      reembolso.tentativaPagamentoId,
+      (totalPorTentativa.get(reembolso.tentativaPagamentoId) ?? new Prisma.Decimal(0))
+        .add(reembolso.valorConfirmado ?? 0),
+    );
+  }
+  return {
+    statusFinanceiro: totalDevolvido.greaterThanOrEqualTo(totalPago)
+      ? StatusFinanceiroPedido.REEMBOLSADO
+      : StatusFinanceiroPedido.REEMBOLSO_PENDENTE,
+    eventos: pagos.filter((item) =>
+      (totalPorTentativa.get(item.id) ?? new Prisma.Decimal(0)).lessThan(item.valor),
+    ).map((item) => ({
+      tipo: "REEMBOLSO_NECESSARIO",
+      tentativaId: item.id,
+      identificadorTransacao: item.transacaoExterna,
+      valor: item.valor.toFixed(2),
+      origem: causa,
+      registradoEm: agora.toISOString(),
+    })),
+  };
+}
+
 async function expirarNoPedido(tx: Transacao, pedidoId: string, agora: Date) {
   const vencidas = await tx.tentativaPagamento.findMany({
     where: {
@@ -107,6 +160,12 @@ async function expirarNoPedido(tx: Transacao, pedidoId: string, agora: Date) {
     if (!pedido || pedido.status === StatusPedido.CANCELADO || pedido.status === StatusPedido.CONCLUIDO) {
       continue;
     }
+    const financeiro = await financeiroELancamentosDeReembolsoAposCancelamento(
+      tx,
+      pedidoId,
+      "EXPIRACAO_SEGUNDA_TENTATIVA_PIX",
+      agora,
+    );
     const historico = Array.isArray(pedido.historicoStatus)
       ? (pedido.historicoStatus as Prisma.InputJsonArray)
       : [];
@@ -114,6 +173,7 @@ async function expirarNoPedido(tx: Transacao, pedidoId: string, agora: Date) {
       where: { id: pedidoId },
       data: {
         status: StatusPedido.CANCELADO,
+        ...(financeiro.statusFinanceiro ? { statusFinanceiro: financeiro.statusFinanceiro } : {}),
         ...(!pedido.usuarioId
           ? { tokenAcompanhamentoExpiraEm: new Date(agora.getTime() + 30 * 24 * 60 * 60 * 1_000) }
           : {}),
@@ -124,6 +184,7 @@ async function expirarNoPedido(tx: Transacao, pedidoId: string, agora: Date) {
             alteradoEm: agora.toISOString(),
             motivo: "EXPIRACAO_SEGUNDA_TENTATIVA_PIX",
           },
+          ...financeiro.eventos,
         ] as Prisma.InputJsonArray,
       },
     });
@@ -475,6 +536,25 @@ export async function processarEventoPagamento(
         ocorridoEm: evento.ocorridoEm.toISOString(),
       },
     ] as Prisma.InputJsonArray;
+
+    const processadoEm = new Date();
+    if (
+      evento.estado === "EXPIRADO" &&
+      atual.metodo === MetodoPagamento.PIX &&
+      (!atual.expiraEm || atual.expiraEm.getTime() > processadoEm.getTime())
+    ) {
+      return tx.tentativaPagamento.update({
+        where: { id: atual.id },
+        data: {
+          eventos: eventosNovos,
+          auditoria: acrescentar(auditoria, {
+            tipo: "EXPIRACAO_PIX_ANTECIPADA_IGNORADA",
+            expiraEm: atual.expiraEm?.toISOString() ?? null,
+            registradoEm: processadoEm.toISOString(),
+          }),
+        },
+      });
+    }
     if (atual.status === StatusTentativaPagamento.PAGO && evento.estado === "PAGO") {
       return tx.tentativaPagamento.update({
         where: { id: atual.id },
@@ -531,12 +611,29 @@ export async function processarEventoPagamento(
           },
         });
       }
+      const historicoAtual = Array.isArray(atual.pedido.historicoStatus)
+        ? (atual.pedido.historicoStatus as Prisma.InputJsonArray)
+        : [];
+      const eventosAuditoriaPedido = [
+        ...(atual.pedido.status === StatusPedido.CANCELADO
+          ? [
+              { tipo: "PAGAMENTO_PIX_TARDIO_APOS_CANCELAMENTO", tentativaId: atual.id, identificadorTransacao: evento.identificadorTransacao, valor: atual.valor.toFixed(2), registradoEm: processadoEm.toISOString() },
+              { tipo: "REEMBOLSO_NECESSARIO", tentativaId: atual.id, identificadorTransacao: evento.identificadorTransacao, valor: atual.valor.toFixed(2), origem: "PAGAMENTO_PIX_TARDIO_APOS_CANCELAMENTO", registradoEm: processadoEm.toISOString() },
+            ]
+          : []),
+        ...(outroPago
+          ? [{ tipo: "PAGAMENTO_DUPLICADO", tentativaId: atual.id, identificadorTransacao: evento.identificadorTransacao, outraTentativaId: outroPago.id, outraIdentificadorTransacao: outroPago.transacaoExterna, registradoEm: processadoEm.toISOString() }]
+          : []),
+      ];
       await tx.pedido.update({
         where: { id: atual.pedidoId },
         data: {
-          statusFinanceiro: atual.pedido.status === StatusPedido.CANCELADO
+          statusFinanceiro: atual.pedido.status === StatusPedido.CANCELADO || outroPago
             ? StatusFinanceiroPedido.REEMBOLSO_PENDENTE
             : StatusFinanceiroPedido.PAGO,
+          ...(eventosAuditoriaPedido.length > 0
+            ? { historicoStatus: [...historicoAtual, ...eventosAuditoriaPedido] as Prisma.InputJsonArray }
+            : {}),
         },
       });
       return tentativaAtualizada;
@@ -562,6 +659,12 @@ export async function processarEventoPagamento(
     if (evento.estado === "EXPIRADO" && atual.numeroTentativa === 2) {
       const pedido = await tx.pedido.findUnique({ where: { id: atual.pedidoId } });
       if (pedido && pedido.status !== StatusPedido.CANCELADO && pedido.status !== StatusPedido.CONCLUIDO) {
+        const financeiro = await financeiroELancamentosDeReembolsoAposCancelamento(
+          tx,
+          pedido.id,
+          "EXPIRACAO_SEGUNDA_TENTATIVA_PIX",
+          processadoEm,
+        );
         const historico = Array.isArray(pedido.historicoStatus)
           ? (pedido.historicoStatus as Prisma.InputJsonArray)
           : [];
@@ -569,6 +672,7 @@ export async function processarEventoPagamento(
           where: { id: pedido.id },
           data: {
             status: StatusPedido.CANCELADO,
+            ...(financeiro.statusFinanceiro ? { statusFinanceiro: financeiro.statusFinanceiro } : {}),
             ...(!pedido.usuarioId
               ? { tokenAcompanhamentoExpiraEm: new Date(Date.now() + 30 * 24 * 60 * 60 * 1_000) }
               : {}),
@@ -579,6 +683,7 @@ export async function processarEventoPagamento(
                 alteradoEm: new Date().toISOString(),
                 motivo: "EXPIRACAO_SEGUNDA_TENTATIVA_PIX",
               },
+              ...financeiro.eventos,
             ] as Prisma.InputJsonArray,
           },
         });
@@ -597,17 +702,22 @@ export async function confirmarPagamentoPresencial(input: {
 }) {
   const agora = input.agora ?? new Date();
   return transacaoSerializavel(input.prisma, async (tx) => {
-    const tentativa = await tx.tentativaPagamento.findUnique({
+    const localizada = await tx.tentativaPagamento.findUnique({
+      where: { id: input.tentativaId },
+      select: { id: true, pedidoId: true },
+    });
+    if (!localizada) throw new Error("TENTATIVA_PAGAMENTO_NAO_ENCONTRADA");
+    await bloquearPedido(tx, localizada.pedidoId);
+    const tentativa = await tx.tentativaPagamento.findUniqueOrThrow({
       where: { id: input.tentativaId },
       include: { pedido: true },
     });
-    if (!tentativa) throw new Error("TENTATIVA_PAGAMENTO_NAO_ENCONTRADA");
-    await bloquearPedido(tx, tentativa.pedidoId);
     if (tentativa.metodo === MetodoPagamento.PIX) throw new Error("CONFIRMACAO_PIX_NAO_PERMITIDA");
-    if (tentativa.status !== StatusTentativaPagamento.PENDENTE) throw new Error("TENTATIVA_JA_ENCERRADA");
     const status = input.resultado === "PAGO"
       ? StatusTentativaPagamento.PAGO
       : StatusTentativaPagamento.RECUSADO;
+    if (tentativa.status === status) return tentativa;
+    if (tentativa.status !== StatusTentativaPagamento.PENDENTE) throw new Error("TENTATIVA_JA_ENCERRADA");
     const atualizada = await tx.tentativaPagamento.update({
       where: { id: tentativa.id },
       data: {

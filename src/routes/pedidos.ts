@@ -57,7 +57,7 @@ const pedidoRespostaSchema = z.object({
     "CONCLUIDO",
     "CANCELADO",
   ]),
-  statusFinanceiro: z.enum(["PENDENTE", "PAGO", "REEMBOLSO_PENDENTE"]),
+  statusFinanceiro: z.enum(["PENDENTE", "PAGO", "REEMBOLSO_PENDENTE", "REEMBOLSADO"]),
   tipoEntrega: z.enum(["ENTREGA", "RETIRADA"]),
   metodoPagamento: z.enum(["PIX", "CREDITO", "DEBITO", "DINHEIRO"]),
   subtotal: z.string(),
@@ -133,7 +133,7 @@ const tentativaPagamentoSchema = z.object({
 });
 
 const tentativasRespostaSchema = z.object({
-  statusFinanceiro: z.enum(["PENDENTE", "PAGO", "REEMBOLSO_PENDENTE"]),
+  statusFinanceiro: z.enum(["PENDENTE", "PAGO", "REEMBOLSO_PENDENTE", "REEMBOLSADO"]),
   tentativas: z.array(tentativaPagamentoSchema),
 });
 
@@ -154,7 +154,7 @@ const pedidoResumoListaSchema = z.object({
     "CONCLUIDO",
     "CANCELADO",
   ]),
-  statusFinanceiro: z.enum(["PENDENTE", "PAGO", "REEMBOLSO_PENDENTE"]),
+  statusFinanceiro: z.enum(["PENDENTE", "PAGO", "REEMBOLSO_PENDENTE", "REEMBOLSADO"]),
   tipoEntrega: z.enum(["ENTREGA", "RETIRADA"]),
   metodoPagamento: z.enum(["PIX", "CREDITO", "DEBITO", "DINHEIRO"]),
   subtotal: z.string(),
@@ -186,7 +186,7 @@ const acompanhamentoVisitanteRespostaSchema = z.object({
     "CONCLUIDO",
     "CANCELADO",
   ]),
-  statusFinanceiro: z.enum(["PENDENTE", "PAGO", "REEMBOLSO_PENDENTE"]),
+  statusFinanceiro: z.enum(["PENDENTE", "PAGO", "REEMBOLSO_PENDENTE", "REEMBOLSADO"]),
   tipoEntrega: z.enum(["ENTREGA", "RETIRADA"]),
   metodoPagamento: z.enum(["PIX", "CREDITO", "DEBITO", "DINHEIRO"]),
   subtotal: z.string(),
@@ -232,6 +232,7 @@ const solicitacaoCancelamentoBodySchema = z
 
 const solicitacaoCancelamentoRespostaSchema = z.object({
   sucesso: z.boolean(),
+  solicitacaoId: z.string().uuid(),
   pedidoId: z.string().uuid(),
   numero: z.number().int(),
   status: z.string(),
@@ -686,7 +687,6 @@ export async function pedidosRoutes(app: FastifyInstance) {
         limitarCobranca({
           operacao: "SOLICITACAO_CANCELAMENTO",
           identificador: `${request.ip}:${pedido.id}`,
-          idempotencyKey: `cancelamento:${pedido.id}`,
         });
         const resultado = await registrarSolicitacaoCancelamento(app.prisma, {
           pedidoId: pedido.id,
@@ -895,7 +895,6 @@ export async function pedidosRoutes(app: FastifyInstance) {
         limitarCobranca({
           operacao: "RECUPERACAO_TOKEN",
           identificador: `${request.ip}:${request.body.telefone}`,
-          idempotencyKey: `recuperar:${request.body.numero}:${request.body.telefone}`,
         });
         const resultado = await recuperarTokenAcompanhamento(
           app.prisma,
