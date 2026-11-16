@@ -1,6 +1,6 @@
 # Sprint 14 — Histórico de cliente e acompanhamento de visitante
 
-**Estado:** Planejada e não implementada; depende dos pedidos (Sprint 12) e do contrato de tentativas PIX (Sprint 13).
+**Estado:** Concluída e testada; cobre histórico de clientes autenticados, acompanhamento seguro de visitantes por token, rotação/recuperação, solicitações de cancelamento sem mutação operacional, revogação por ADMIN e resiliência com fallback degradado em memória sem Redis.
 
 ## Objetivo e contratos
 

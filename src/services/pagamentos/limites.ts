@@ -1,6 +1,13 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
-type OperacaoCobranca = "COBRANCA_INICIAL" | "SEGUNDA_TENTATIVA";
+export type OperacaoLimite =
+  | "COBRANCA_INICIAL"
+  | "SEGUNDA_TENTATIVA"
+  | "RECUPERACAO_TOKEN"
+  | "SOLICITACAO_CANCELAMENTO"
+  | "CONSULTA_ACOMPANHAMENTO";
+
+export type OperacaoCobranca = OperacaoLimite;
 type ConfiguracaoLimite = { maximo: number; janelaMs: number };
 
 const janelas = new Map<string, {
@@ -16,7 +23,7 @@ function numeroPositivo(nome: string): number | null {
   return Number.isSafeInteger(valor) && valor > 0 ? valor : null;
 }
 
-function configuracao(operacao: OperacaoCobranca): ConfiguracaoLimite | null {
+function configuracao(operacao: OperacaoLimite): ConfiguracaoLimite | null {
   const maximo = numeroPositivo(`PAGAMENTOS_RATE_LIMIT_${operacao}`);
   const janelaSegundos = numeroPositivo("PAGAMENTOS_RATE_LIMIT_JANELA_SEGUNDOS");
   if (maximo !== null && janelaSegundos !== null) {
@@ -26,6 +33,12 @@ function configuracao(operacao: OperacaoCobranca): ConfiguracaoLimite | null {
   // fornecem uma configuração explícita e baixa para validar o bloqueio.
   if (process.env.NODE_ENV === "test") {
     return { maximo: Number.MAX_SAFE_INTEGER, janelaMs: 60_000 };
+  }
+  if (operacao === "CONSULTA_ACOMPANHAMENTO") {
+    return { maximo: 60, janelaMs: 60_000 };
+  }
+  if (process.env.NODE_ENV !== "production") {
+    return { maximo: 60, janelaMs: 60_000 };
   }
   return null;
 }
@@ -44,12 +57,15 @@ export function verificarConfiguracaoLimitesPagamento() {
 }
 
 export function limitarCobranca(input: {
-  operacao: OperacaoCobranca;
+  operacao: OperacaoLimite;
   identificador: string;
-  idempotencyKey: string;
+  idempotencyKey?: string;
   agora?: number;
 }) {
-  if (process.env.NODE_ENV === "production") {
+  if (
+    process.env.NODE_ENV === "production" &&
+    input.operacao !== "CONSULTA_ACOMPANHAMENTO"
+  ) {
     // O adaptador Redis compartilhado pertence à Sprint 17. Até existir,
     // bloquear escrita financeira em vez de cair para memória por processo.
     throw new Error("RATE_LIMITER_DISTRIBUIDO_INDISPONIVEL");
@@ -66,9 +82,9 @@ export function limitarCobranca(input: {
     .update(`${input.operacao}:${input.identificador}`)
     .digest("hex");
   const chave = `${input.operacao}:${escopo}`;
-  const idRequisicao = createHash("sha256")
-    .update(input.idempotencyKey)
-    .digest("hex");
+  const idRequisicao = input.idempotencyKey
+    ? createHash("sha256").update(input.idempotencyKey).digest("hex")
+    : createHash("sha256").update(randomUUID()).digest("hex");
   let janela = janelas.get(chave);
   if (!janela || agora - janela.inicio >= config.janelaMs) {
     janela = {

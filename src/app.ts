@@ -31,7 +31,19 @@ export function criarAplicacao() {
     throw new Error("PROVEDOR_PAGAMENTO_NAO_IMPLEMENTADO");
   }
   const app = Fastify({
-    logger: true,
+    logger: {
+      redact: {
+        paths: [
+          "req.headers.authorization",
+          "req.headers.cookie",
+          'req.headers["x-pedido-token"]',
+          "headers.authorization",
+          "headers.cookie",
+          'headers["x-pedido-token"]',
+        ],
+        censor: "[REDACTED]",
+      },
+    },
   });
 
   const simulador = provedorConfigurado === "simulador"

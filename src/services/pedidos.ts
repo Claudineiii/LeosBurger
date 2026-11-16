@@ -641,3 +641,317 @@ export async function recuperarTokenAcompanhamento(
     return { tokenAcompanhamento: token };
   });
 }
+
+export async function listarPedidosCliente(
+  prisma: FastifyRequest["server"]["prisma"],
+  usuarioId: string,
+  opcoes?: { pagina?: number; limite?: number },
+) {
+  const pagina = Math.max(1, opcoes?.pagina ?? 1);
+  const limite = Math.min(50, Math.max(1, opcoes?.limite ?? 20));
+  const pular = (pagina - 1) * limite;
+
+  const [total, pedidos] = await Promise.all([
+    prisma.pedido.count({ where: { usuarioId } }),
+    prisma.pedido.findMany({
+      where: { usuarioId },
+      orderBy: [{ criadoEm: "desc" }, { id: "desc" }],
+      skip: pular,
+      take: limite,
+      include: {
+        itensPedido: {
+          select: {
+            id: true,
+            itemId: true,
+            comboId: true,
+            nomeHistorico: true,
+            precoUnitarioHistorico: true,
+            quantidade: true,
+            subtotal: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  return {
+    pagina,
+    limite,
+    total,
+    totalPaginas: Math.ceil(total / limite),
+    pedidos: pedidos.map((p) => ({
+      id: p.id,
+      numero: p.numero,
+      status: p.status,
+      statusFinanceiro: p.statusFinanceiro,
+      tipoEntrega: p.tipoEntrega,
+      metodoPagamento: p.metodoPagamento,
+      subtotal: p.subtotal.toFixed(2),
+      desconto: p.desconto.toFixed(2),
+      taxaEntrega: p.taxaEntrega.toFixed(2),
+      total: p.total.toFixed(2),
+      codigoCupom: p.codigoCupom,
+      itensQuantidade: p.itensPedido.reduce((acc, item) => acc + item.quantidade, 0),
+      criadoEm: p.criadoEm.toISOString(),
+    })),
+  };
+}
+
+export async function obterDetalhePedidoCliente(
+  prisma: FastifyRequest["server"]["prisma"],
+  pedidoId: string,
+  usuarioId: string,
+) {
+  const pedido = await prisma.pedido.findFirst({
+    where: { id: pedidoId, usuarioId },
+    include: {
+      itensPedido: true,
+      tentativasPagamento: {
+        orderBy: { numeroTentativa: "asc" },
+        select: {
+          id: true,
+          metodo: true,
+          numeroTentativa: true,
+          status: true,
+          valor: true,
+          confirmadaEm: true,
+          expiraEm: true,
+          encerradoEm: true,
+          criadoEm: true,
+        },
+      },
+    },
+  });
+
+  if (!pedido) {
+    return null;
+  }
+
+  return {
+    ...prepararResposta(pedido),
+    statusFinanceiro: pedido.statusFinanceiro,
+    historicoStatus: Array.isArray(pedido.historicoStatus)
+      ? (pedido.historicoStatus as Record<string, unknown>[])
+      : [],
+    tentativasPagamento: pedido.tentativasPagamento.map((item) => ({
+      ...item,
+      valor: item.valor.toFixed(2),
+      confirmadaEm: item.confirmadaEm?.toISOString() ?? null,
+      expiraEm: item.expiraEm?.toISOString() ?? null,
+      encerradoEm: item.encerradoEm?.toISOString() ?? null,
+      criadoEm: item.criadoEm.toISOString(),
+    })),
+  };
+}
+
+export async function obterAcompanhamentoVisitante(
+  prisma: FastifyRequest["server"]["prisma"],
+  tokenPlainText: string,
+  agora: Date = new Date(),
+) {
+  const hash = hashSha256(tokenPlainText);
+  const pedido = await prisma.pedido.findFirst({
+    where: { tokenAcompanhamentoHash: hash, usuarioId: null },
+    include: {
+      itensPedido: {
+        select: {
+          id: true,
+          nomeHistorico: true,
+          quantidade: true,
+          precoUnitarioHistorico: true,
+          subtotal: true,
+          adicionais: true,
+        },
+      },
+      tentativasPagamento: {
+        orderBy: { numeroTentativa: "asc" },
+        select: {
+          id: true,
+          metodo: true,
+          numeroTentativa: true,
+          status: true,
+          valor: true,
+          confirmadaEm: true,
+          expiraEm: true,
+        },
+      },
+    },
+  });
+
+  if (!pedido || pedido.tokenAcompanhamentoRevogadoEm) {
+    return null;
+  }
+
+  if (pedido.tokenAcompanhamentoExpiraEm && pedido.tokenAcompanhamentoExpiraEm <= agora) {
+    return null;
+  }
+
+  if (pedido.status === StatusPedido.CONCLUIDO || pedido.status === StatusPedido.CANCELADO) {
+    const dataLimite =
+      pedido.tokenAcompanhamentoExpiraEm ??
+      new Date(pedido.atualizadoEm.getTime() + 30 * 24 * 60 * 60 * 1_000);
+    if (agora >= dataLimite) {
+      return null;
+    }
+  }
+
+  // DTO enxuto para visitante, omitindo dados pessoais e endereço completo (Sprint 14)
+  return {
+    id: pedido.id,
+    numero: pedido.numero,
+    status: pedido.status,
+    statusFinanceiro: pedido.statusFinanceiro,
+    tipoEntrega: pedido.tipoEntrega,
+    metodoPagamento: pedido.metodoPagamento,
+    subtotal: pedido.subtotal.toFixed(2),
+    desconto: pedido.desconto.toFixed(2),
+    taxaEntrega: pedido.taxaEntrega.toFixed(2),
+    total: pedido.total.toFixed(2),
+    criadoEm: pedido.criadoEm.toISOString(),
+    itens: pedido.itensPedido.map((item) => ({
+      id: item.id,
+      nome: item.nomeHistorico,
+      quantidade: item.quantidade,
+      precoUnitario: item.precoUnitarioHistorico.toFixed(2),
+      subtotal: item.subtotal.toFixed(2),
+      adicionais: Array.isArray(item.adicionais)
+        ? (item.adicionais as { nome?: string; quantidade?: number }[]).map((a) => ({
+            nome: a.nome ?? "",
+            quantidade: a.quantidade ?? 1,
+          }))
+        : null,
+    })),
+    pagamento: pedido.tentativasPagamento.map((t) => ({
+      id: t.id,
+      numeroTentativa: t.numeroTentativa,
+      metodo: t.metodo,
+      status: t.status,
+      valor: t.valor.toFixed(2),
+      confirmadaEm: t.confirmadaEm?.toISOString() ?? null,
+      expiraEm: t.expiraEm?.toISOString() ?? null,
+    })),
+  };
+}
+
+export async function registrarSolicitacaoCancelamento(
+  prisma: FastifyRequest["server"]["prisma"],
+  input: {
+    pedidoId: string;
+    solicitante: { tipo: "CLIENTE" | "VISITANTE"; usuarioId?: string };
+    motivo: string;
+  },
+) {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "pedidos" WHERE "id" = ${input.pedidoId} FOR UPDATE`;
+    const pedido = await tx.pedido.findUnique({
+      where: { id: input.pedidoId },
+    });
+
+    if (!pedido) {
+      throw new Error("PEDIDO_NAO_ENCONTRADO");
+    }
+
+    if (
+      pedido.status === StatusPedido.CONCLUIDO ||
+      pedido.status === StatusPedido.CANCELADO
+    ) {
+      throw new Error("PEDIDO_NAO_PODE_SER_CANCELADO");
+    }
+
+    const agora = new Date();
+    const historicoAtual = Array.isArray(pedido.historicoStatus)
+      ? (pedido.historicoStatus as Prisma.InputJsonArray)
+      : [];
+
+    const jaSolicitado = historicoAtual.some(
+      (h) => typeof h === "object" && h !== null && "motivo" in h && h.motivo === "SOLICITACAO_CANCELAMENTO_CLIENTE",
+    );
+    if (jaSolicitado) {
+      throw new Error("SOLICITACAO_CANCELAMENTO_JA_REGISTRADA");
+    }
+
+    const atualizado = await tx.pedido.update({
+      where: { id: pedido.id },
+      data: {
+        historicoStatus: [
+          ...historicoAtual,
+          {
+            tipo: "SOLICITACAO_CANCELAMENTO",
+            solicitante: input.solicitante.tipo,
+            motivo: "SOLICITACAO_CANCELAMENTO_CLIENTE",
+            justificativa: input.motivo.trim(),
+            registradoEm: agora.toISOString(),
+          },
+        ] as Prisma.InputJsonArray,
+      },
+    });
+
+    return {
+      sucesso: true,
+      pedidoId: atualizado.id,
+      numero: atualizado.numero,
+      status: atualizado.status,
+      mensagem: "Solicitação de cancelamento registrada com sucesso. Aguardando aprovação administrativa.",
+    };
+  });
+}
+
+export async function revogarTokenAcompanhamentoAdmin(
+  prisma: FastifyRequest["server"]["prisma"],
+  pedidoId: string,
+  adminId: string,
+) {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "pedidos" WHERE "id" = ${pedidoId} FOR UPDATE`;
+    const pedido = await tx.pedido.findUnique({
+      where: { id: pedidoId },
+    });
+
+    if (!pedido) {
+      throw new Error("PEDIDO_NAO_ENCONTRADO");
+    }
+
+    if (!pedido.tokenAcompanhamentoHash) {
+      throw new Error("PEDIDO_NAO_POSSUI_TOKEN");
+    }
+
+    if (pedido.tokenAcompanhamentoRevogadoEm) {
+      return {
+        sucesso: true,
+        pedidoId: pedido.id,
+        numero: pedido.numero,
+        revogadoEm: pedido.tokenAcompanhamentoRevogadoEm.toISOString(),
+        mensagem: "Token de acompanhamento já se encontrava revogado.",
+      };
+    }
+
+    const agora = new Date();
+    const historicoAtual = Array.isArray(pedido.historicoStatus)
+      ? (pedido.historicoStatus as Prisma.InputJsonArray)
+      : [];
+
+    const atualizado = await tx.pedido.update({
+      where: { id: pedido.id },
+      data: {
+        tokenAcompanhamentoRevogadoEm: agora,
+        historicoStatus: [
+          ...historicoAtual,
+          {
+            tipo: "REVOGACAO_TOKEN_ACOMPANHAMENTO",
+            solicitante: "ADMIN",
+            adminId,
+            registradoEm: agora.toISOString(),
+          },
+        ] as Prisma.InputJsonArray,
+      },
+    });
+
+    return {
+      sucesso: true,
+      pedidoId: atualizado.id,
+      numero: atualizado.numero,
+      revogadoEm: agora.toISOString(),
+      mensagem: "Token de acompanhamento revogado com sucesso.",
+    };
+  });
+}

@@ -5,9 +5,14 @@ import { type ZodTypeProvider } from "@fastify/type-provider-zod";
 import {
   criarPedido,
   idempotencyKeySchema,
+  listarPedidosCliente,
+  obterAcompanhamentoVisitante,
+  obterDetalhePedidoCliente,
   pedidoBodySchema,
   recuperarAcompanhamentoBodySchema,
   recuperarTokenAcompanhamento,
+  registrarSolicitacaoCancelamento,
+  revogarTokenAcompanhamentoAdmin,
 } from "../services/pedidos.js";
 import {
   confirmarPagamentoPresencial,
@@ -16,6 +21,7 @@ import {
   processarEventoPagamento,
   solicitarSegundaTentativa,
 } from "../services/pagamentos/tentativas.js";
+import { limitarCobranca } from "../services/pagamentos/limites.js";
 import type { TentativaPagamento } from "@prisma/client";
 import type { CenarioSimulacao } from "../services/pagamentos/simulador.js";
 
@@ -129,6 +135,132 @@ const tentativaPagamentoSchema = z.object({
 const tentativasRespostaSchema = z.object({
   statusFinanceiro: z.enum(["PENDENTE", "PAGO", "REEMBOLSO_PENDENTE"]),
   tentativas: z.array(tentativaPagamentoSchema),
+});
+
+const listaPedidosQuerySchema = z.object({
+  pagina: z.coerce.number().int().min(1).default(1),
+  limite: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+const pedidoResumoListaSchema = z.object({
+  id: z.string().uuid(),
+  numero: z.number().int(),
+  status: z.enum([
+    "PENDENTE",
+    "CONFIRMADO",
+    "PREPARANDO",
+    "PRONTO",
+    "SAIU_PARA_ENTREGA",
+    "CONCLUIDO",
+    "CANCELADO",
+  ]),
+  statusFinanceiro: z.enum(["PENDENTE", "PAGO", "REEMBOLSO_PENDENTE"]),
+  tipoEntrega: z.enum(["ENTREGA", "RETIRADA"]),
+  metodoPagamento: z.enum(["PIX", "CREDITO", "DEBITO", "DINHEIRO"]),
+  subtotal: z.string(),
+  desconto: z.string(),
+  taxaEntrega: z.string(),
+  total: z.string(),
+  codigoCupom: z.string().nullable(),
+  itensQuantidade: z.number().int(),
+  criadoEm: z.string().datetime(),
+});
+
+const listaPedidosRespostaSchema = z.object({
+  pagina: z.number().int(),
+  limite: z.number().int(),
+  total: z.number().int(),
+  totalPaginas: z.number().int(),
+  pedidos: z.array(pedidoResumoListaSchema),
+});
+
+const acompanhamentoVisitanteRespostaSchema = z.object({
+  id: z.string().uuid(),
+  numero: z.number().int(),
+  status: z.enum([
+    "PENDENTE",
+    "CONFIRMADO",
+    "PREPARANDO",
+    "PRONTO",
+    "SAIU_PARA_ENTREGA",
+    "CONCLUIDO",
+    "CANCELADO",
+  ]),
+  statusFinanceiro: z.enum(["PENDENTE", "PAGO", "REEMBOLSO_PENDENTE"]),
+  tipoEntrega: z.enum(["ENTREGA", "RETIRADA"]),
+  metodoPagamento: z.enum(["PIX", "CREDITO", "DEBITO", "DINHEIRO"]),
+  subtotal: z.string(),
+  desconto: z.string(),
+  taxaEntrega: z.string(),
+  total: z.string(),
+  criadoEm: z.string().datetime(),
+  itens: z.array(
+    z.object({
+      id: z.string().uuid(),
+      nome: z.string(),
+      quantidade: z.number().int(),
+      precoUnitario: z.string(),
+      subtotal: z.string(),
+      adicionais: z
+        .array(
+          z.object({
+            nome: z.string(),
+            quantidade: z.number().int(),
+          }),
+        )
+        .nullable(),
+    }),
+  ),
+  pagamento: z.array(
+    z.object({
+      id: z.string().uuid(),
+      numeroTentativa: z.number().int(),
+      metodo: z.enum(["PIX", "CREDITO", "DEBITO", "DINHEIRO"]),
+      status: z.enum(["PENDENTE", "PAGO", "FALHOU", "RECUSADO", "EXPIRADO"]),
+      valor: z.string(),
+      confirmadaEm: z.string().datetime().nullable(),
+      expiraEm: z.string().datetime().nullable(),
+    }),
+  ),
+});
+
+const solicitacaoCancelamentoBodySchema = z
+  .object({
+    motivo: z.string().trim().min(3).max(500),
+  })
+  .strict();
+
+const solicitacaoCancelamentoRespostaSchema = z.object({
+  sucesso: z.boolean(),
+  pedidoId: z.string().uuid(),
+  numero: z.number().int(),
+  status: z.string(),
+  mensagem: z.string(),
+});
+
+const revogarTokenAcompanhamentoRespostaSchema = z.object({
+  sucesso: z.boolean(),
+  pedidoId: z.string().uuid(),
+  numero: z.number().int(),
+  revogadoEm: z.string().datetime(),
+  mensagem: z.string(),
+});
+
+const pedidoDetalheClienteRespostaSchema = pedidoRespostaSchema.extend({
+  historicoStatus: z.array(z.record(z.string(), z.unknown())),
+  tentativasPagamento: z.array(
+    z.object({
+      id: z.string().uuid(),
+      metodo: z.enum(["PIX", "CREDITO", "DEBITO", "DINHEIRO"]),
+      numeroTentativa: z.number().int(),
+      status: z.enum(["PENDENTE", "PAGO", "FALHOU", "RECUSADO", "EXPIRADO"]),
+      valor: z.string(),
+      confirmadaEm: z.string().datetime().nullable(),
+      expiraEm: z.string().datetime().nullable(),
+      encerradoEm: z.string().datetime().nullable(),
+      criadoEm: z.string().datetime(),
+    }),
+  ),
 });
 
 const mensagensErro: Record<
@@ -285,6 +417,26 @@ const mensagensErro: Record<
     error: "CONFLICT",
     message: "A tentativa já foi encerrada.",
   },
+  PEDIDO_NAO_PODE_SER_CANCELADO: {
+    status: 409,
+    error: "CONFLICT",
+    message: "Este pedido não pode mais ser cancelado.",
+  },
+  SOLICITACAO_CANCELAMENTO_JA_REGISTRADA: {
+    status: 409,
+    error: "CONFLICT",
+    message: "Já existe uma solicitação de cancelamento registrada para este pedido.",
+  },
+  PEDIDO_NAO_POSSUI_TOKEN: {
+    status: 400,
+    error: "BAD_REQUEST",
+    message: "O pedido informado não possui token de acompanhamento para revogação.",
+  },
+  ACESSO_EXCLUSIVO_CLIENTE: {
+    status: 403,
+    error: "FORBIDDEN",
+    message: "Acesso exclusivo para clientes autenticados.",
+  },
 };
 
 function enviarErroConhecido(erro: unknown, reply: FastifyReply) {
@@ -351,6 +503,199 @@ export async function pedidosRoutes(app: FastifyInstance) {
           app.provedorPagamentos,
         );
         return reply.code(resultado.repetido ? 200 : 201).send(resultado);
+      } catch (erro) {
+        return enviarErroConhecido(erro, reply);
+      }
+    },
+  );
+
+  api.get(
+    "/pedidos",
+    {
+      preHandler: [app.autenticar],
+      schema: {
+        description: "Lista o histórico de pedidos do cliente autenticado.",
+        tags: ["Pedidos"],
+        querystring: listaPedidosQuerySchema,
+        response: {
+          200: listaPedidosRespostaSchema,
+          400: erroSchema,
+          401: erroSchema,
+          403: erroSchema,
+          500: erroSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        if (request.usuarioAutenticado?.tipo !== "CLIENTE") {
+          return reply.code(403).send(mensagensErro.ACESSO_EXCLUSIVO_CLIENTE!);
+        }
+        const resultado = await listarPedidosCliente(
+          app.prisma,
+          request.usuarioAutenticado.id,
+          request.query,
+        );
+        return reply.code(200).send(resultado);
+      } catch (erro) {
+        return enviarErroConhecido(erro, reply);
+      }
+    },
+  );
+
+  api.get(
+    "/pedidos/acompanhamento",
+    {
+      preHandler: [app.autenticarOpcional],
+      schema: {
+        description:
+          "Consulta acompanhamento operacional e financeiro do pedido por visitante usando token.",
+        tags: ["Pedidos"],
+        headers: z
+          .object({
+            "x-pedido-token": z.string().min(1).optional(),
+          })
+          .passthrough(),
+        response: {
+          200: acompanhamentoVisitanteRespostaSchema,
+          400: erroSchema,
+          404: erroSchema,
+          429: erroSchema,
+          500: erroSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const query = request.query as Record<string, unknown> | undefined;
+        if (query && (query.token || query.tokenAcompanhamento || query["x-pedido-token"])) {
+          return reply.code(400).send({
+            status: 400,
+            error: "BAD_REQUEST",
+            message: "O token de acompanhamento não deve ser enviado na query ou URL.",
+          });
+        }
+        const tokenRecebido = request.headers["x-pedido-token"];
+        if (typeof tokenRecebido !== "string" || !tokenRecebido.trim()) {
+          return reply.code(404).send({
+            status: 404,
+            error: "NOT_FOUND",
+            message: "Pedido não encontrado.",
+          });
+        }
+        limitarCobranca({
+          operacao: "CONSULTA_ACOMPANHAMENTO",
+          identificador: `${request.ip}:${tokenRecebido.slice(0, 8)}`,
+        });
+        const acompanhamento = await obterAcompanhamentoVisitante(
+          app.prisma,
+          tokenRecebido.trim(),
+        );
+        if (!acompanhamento) {
+          return reply.code(404).send({
+            status: 404,
+            error: "NOT_FOUND",
+            message: "Pedido não encontrado.",
+          });
+        }
+        return reply.code(200).send(acompanhamento);
+      } catch (erro) {
+        return enviarErroConhecido(erro, reply);
+      }
+    },
+  );
+
+  api.get(
+    "/pedidos/:id",
+    {
+      preHandler: [app.autenticar],
+      schema: {
+        description:
+          "Obtém detalhe completo de um pedido pertencente ao cliente autenticado.",
+        tags: ["Pedidos"],
+        params: z.object({ id: z.string().uuid() }),
+        response: {
+          200: pedidoDetalheClienteRespostaSchema,
+          400: erroSchema,
+          401: erroSchema,
+          403: erroSchema,
+          404: erroSchema,
+          500: erroSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        if (request.usuarioAutenticado?.tipo !== "CLIENTE") {
+          return reply.code(403).send(mensagensErro.ACESSO_EXCLUSIVO_CLIENTE!);
+        }
+        const pedido = await obterDetalhePedidoCliente(
+          app.prisma,
+          request.params.id,
+          request.usuarioAutenticado.id,
+        );
+        if (!pedido) {
+          return reply.code(404).send({
+            status: 404,
+            error: "NOT_FOUND",
+            message: "Pedido não encontrado.",
+          });
+        }
+        return reply.code(200).send(pedido);
+      } catch (erro) {
+        return enviarErroConhecido(erro, reply);
+      }
+    },
+  );
+
+  api.post(
+    "/pedidos/:id/solicitacoes-cancelamento",
+    {
+      preHandler: [app.verificarOrigem, app.autenticarOpcional],
+      schema: {
+        description:
+          "Registra solicitação de cancelamento de pedido por cliente proprietário ou visitante com token válido.",
+        tags: ["Pedidos"],
+        params: z.object({ id: z.string().uuid() }),
+        headers: z
+          .object({
+            "x-pedido-token": z.string().length(43).optional(),
+          })
+          .passthrough(),
+        body: solicitacaoCancelamentoBodySchema,
+        response: {
+          200: solicitacaoCancelamentoRespostaSchema,
+          400: erroSchema,
+          404: erroSchema,
+          409: erroSchema,
+          429: erroSchema,
+          500: erroSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const pedido = await pedidoAutorizado(app, request.params.id, request);
+        if (!pedido) {
+          return reply.code(404).send({
+            status: 404,
+            error: "NOT_FOUND",
+            message: "Pedido não encontrado.",
+          });
+        }
+        limitarCobranca({
+          operacao: "SOLICITACAO_CANCELAMENTO",
+          identificador: `${request.ip}:${pedido.id}`,
+          idempotencyKey: `cancelamento:${pedido.id}`,
+        });
+        const resultado = await registrarSolicitacaoCancelamento(app.prisma, {
+          pedidoId: pedido.id,
+          solicitante: request.usuarioAutenticado
+            ? { tipo: "CLIENTE", usuarioId: request.usuarioAutenticado.id }
+            : { tipo: "VISITANTE" },
+          motivo: request.body.motivo,
+        });
+        return reply.code(200).send(resultado);
       } catch (erro) {
         return enviarErroConhecido(erro, reply);
       }
@@ -495,6 +840,38 @@ export async function pedidosRoutes(app: FastifyInstance) {
     },
   );
 
+  api.patch(
+    "/admin/pedidos/:id/token-acompanhamento/revogar",
+    {
+      preHandler: [app.verificarOrigem, app.autorizarAdmin],
+      schema: {
+        description: "Revoga imediatamente o token de acompanhamento de um visitante pelo ADMIN.",
+        tags: ["Admin - Pedidos"],
+        params: z.object({ id: z.string().uuid() }),
+        response: {
+          200: revogarTokenAcompanhamentoRespostaSchema,
+          400: erroSchema,
+          401: erroSchema,
+          403: erroSchema,
+          404: erroSchema,
+          500: erroSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        const resultado = await revogarTokenAcompanhamentoAdmin(
+          app.prisma,
+          request.params.id,
+          request.usuarioAutenticado!.id,
+        );
+        return reply.code(200).send(resultado);
+      } catch (erro) {
+        return enviarErroConhecido(erro, reply);
+      }
+    },
+  );
+
   api.post(
     "/pedidos/acompanhamento/recuperar",
     {
@@ -508,12 +885,18 @@ export async function pedidosRoutes(app: FastifyInstance) {
           200: tokenAcompanhamentoSchema,
           400: erroSchema,
           404: erroSchema,
+          429: erroSchema,
           500: erroSchema,
         },
       },
     },
     async (request, reply) => {
       try {
+        limitarCobranca({
+          operacao: "RECUPERACAO_TOKEN",
+          identificador: `${request.ip}:${request.body.telefone}`,
+          idempotencyKey: `recuperar:${request.body.numero}:${request.body.telefone}`,
+        });
         const resultado = await recuperarTokenAcompanhamento(
           app.prisma,
           request.body,
@@ -561,8 +944,17 @@ async function pedidoAutorizado(
   ) {
     return null;
   }
-  if (pedido.tokenAcompanhamentoExpiraEm && pedido.tokenAcompanhamentoExpiraEm <= new Date()) {
+  const agora = new Date();
+  if (pedido.tokenAcompanhamentoExpiraEm && pedido.tokenAcompanhamentoExpiraEm <= agora) {
     return null;
+  }
+  if (pedido.status === "CONCLUIDO" || pedido.status === "CANCELADO") {
+    const dataLimite =
+      pedido.tokenAcompanhamentoExpiraEm ??
+      new Date(pedido.atualizadoEm.getTime() + 30 * 24 * 60 * 60 * 1_000);
+    if (agora >= dataLimite) {
+      return null;
+    }
   }
   const hash = createHash("sha256").update(tokenRecebido, "utf8").digest();
   const hashArmazenado = Buffer.from(pedido.tokenAcompanhamentoHash, "hex");

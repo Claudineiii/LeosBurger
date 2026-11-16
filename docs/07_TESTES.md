@@ -104,7 +104,7 @@ Cobertura implementada para tentativa PIX inicial e segunda cobrança idempotent
 - Simulador proibido em produção; nenhuma resposta simula recebimento real.
 - Token de visitante autoriza solicitar a segunda tentativa, sob rate limit e regras de expiração/quantidade.
 
-### Sprint 14 — `tests/api/pedidos.test.ts` e `tracking.test.ts`
+### Sprint 14 — `tests/api/pedidos.test.ts` e `tests/api/acompanhamento.test.ts`
 
 - Cliente autenticado lista/detalha apenas próprios pedidos; terceiro/inexistente sem enumeração.
 - Tracking exige token válido por hash, não expirado e não revogado; retorna pedido/pagamento com minimização de dados, sem endereço completo.
