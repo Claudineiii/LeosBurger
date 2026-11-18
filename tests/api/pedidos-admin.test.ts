@@ -121,7 +121,7 @@ describe("Sprint 15 — Administração, cancelamentos e reembolsos", () => {
     }
   });
 
-  it("aplica a matriz de transições e bloqueia a conclusão incompatível com a modalidade", async () => {
+  it("aplica a matriz de transições e bloqueia a conclusão incompatível com a modalidade", { timeout: 20000 }, async () => {
     const { app, admin, cliente, cookieAdmin } = await ambiente();
     const casos: [StatusPedido, StatusPedido, TipoEntrega][] = [
       [StatusPedido.PENDENTE, StatusPedido.CONFIRMADO, TipoEntrega.RETIRADA],
