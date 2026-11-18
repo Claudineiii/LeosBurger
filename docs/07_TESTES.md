@@ -68,6 +68,22 @@ npm test -- --run tests/api/perfil.test.ts tests/api/checkout-endereco-visitante
 
 Na validação local de 04/11/2026, `npm test -- --run` concluiu com 26 arquivos e 163 testes aprovados. Build, validação do Prisma, migrations de teste e `git diff --check` também passaram; nenhuma chamada real ao Geoapify foi feita.
 
+## Sprint 16 — dashboard
+
+`tests/api/dashboard.test.ts` cobre bounds de dia/mês/semestre/ano em São Paulo, troca de semestre, ano bissexto, data inválida e conversão independente do timezone local; protege a rota para ADMIN; valida cobranças distintas e replay, confirmação presencial, recebimentos simulados/reais/não classificados, reembolsos simulados/reais/não classificados, método e data, além de PIX incompleto/vencido, falha e pagamentos presenciais ainda pendentes. Verifica que bruto/financeiro não multiplica por relações.
+
+Execute diretamente com a guarda da configuração Vitest, que carrega e valida `TEST_DATABASE_URL` para `127.0.0.1` e `leosburger_test`:
+
+```sh
+node_modules/.bin/vitest run tests/api/dashboard.test.ts
+```
+
+Pedidos, tentativas e reembolsos são agregados separadamente no PostgreSQL. O SQL de reembolso relaciona cada ocorrência à no máximo uma tentativa original pela FK, sem multiplicar linhas; filtros temporais financeiros usam a data efetiva da transação.
+
+Validação desta revisão: Vitest direto serial (`--maxWorkers=1`), 32 arquivos/224 testes aprovados; `npm run build`, `npx prisma validate`, status das 9 migrations (atualizadas em `leosburger_test`) e `git diff --check` aprovados. `npm test -- --run` falha antes de iniciar o wrapper em Windows com `node:os.userInfo(): uv_os_get_passwd returned ENOMEM` via `tsx`; a suíte direta carregou a configuração com proteção explícita de loopback e banco `leosburger_test`.
+
+O request de dashboard observado na fixture levou ~64–76 ms. O fluxo executa 7 consultas agregadas/leitura mais a consulta de identidade ADMIN, contadas pelo código. `EXPLAIN (ANALYZE, BUFFERS)` das queries financeiras levou 0,216 ms (21 buffer hits) e 0,181 ms (7 buffer hits), sem leitura física; não havia reembolsos no período do explain. Isso descreve somente o banco pequeno de teste, não uma carga de produção. Uma sessão Prisma CLI foi observada em `pg_stat_activity`; isso não mede o pool da API.
+
 ## CI
 
 O GitHub Actions fornece `TEST_DATABASE_URL` apontando para seu serviço PostgreSQL temporário, executa `npm run db:test:migrate` e roda a suíte com `npm test -- --run`. Não depende de arquivos `.env` locais.

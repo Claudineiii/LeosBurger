@@ -5,7 +5,7 @@
 
 ## 1. Visão do produto
 
-O LEOSBurger permite consultar cardápio e fazer pedidos online. O backend possui catálogo, autenticação, administração, endereços, checkout, pedidos transacionais, tentativas de pagamento simuladas em desenvolvimento/testes e administração de status/cancelamentos/reembolsos manuais (Sprint 15). Provedor real PIX e dashboard continuam futuros.
+O LEOSBurger permite consultar cardápio e fazer pedidos online. O backend possui catálogo, autenticação, administração, endereços, checkout, pedidos transacionais, tentativas de pagamento simuladas em desenvolvimento/testes, administração de status/cancelamentos/reembolsos manuais (Sprint 15) e dashboard administrativo (Sprint 16). Provedor PIX real continua futuro.
 
 ## 2. Arquitetura lógica atual e desejada
 

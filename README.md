@@ -4,7 +4,7 @@ Plataforma de pedidos online para lanchonete, com cardápio digital integrado.
 
 ## Status
 
-Projeto em desenvolvimento. O backend inclui catálogo, autenticação, administração, endereços, checkout, criação transacional de pedidos e tentativas de pagamento com simulador restrito a desenvolvimento/testes. Gateway PIX real e dashboard ainda não estão implementados. O estado das Sprints 11–18 está em [`docs/`](./docs/).
+Projeto em desenvolvimento. O backend inclui catálogo, autenticação, administração, endereços, checkout, pedidos, pagamentos simulados, administração de status/cancelamentos/reembolsos e dashboard. Gateway PIX real não está integrado. O estado das Sprints 11–18 está em [`docs/`](./docs/).
 
 ## Stack
 

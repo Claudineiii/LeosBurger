@@ -3,7 +3,7 @@
 **Projeto:** LEOSBurger  
 **Repositório local informado:** `C:/LeosBurger`  
 **Idioma dos documentos:** português  
-**Status:** backend até a Sprint 15 implementado localmente; produção depende de itens externos, provedor PIX real e rate limiting compartilhado da Sprint 17.
+**Status:** backend até a Sprint 16 implementado localmente; produção depende de itens externos, provedor PIX real e rate limiting compartilhado da Sprint 17.
 
 ## Como usar este pacote
 

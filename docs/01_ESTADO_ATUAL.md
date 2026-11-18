@@ -2,7 +2,7 @@
 
 ## Resumo executivo
 
-O LEOSBurger é um cardápio digital com pedidos online. A API possui catálogo, autenticação, administração, endereços, checkout, pedidos transacionais e tentativas financeiras com simulador restrito a desenvolvimento/testes. Gateway PIX real, operações administrativas completas de pedidos/reembolsos e dashboard ainda estão planejados.
+O LEOSBurger é um cardápio digital com pedidos online. A API possui catálogo, autenticação, administração, endereços, checkout, pedidos transacionais, tentativas financeiras com simulador e dashboard administrativo. Gateway PIX real não está integrado.
 
 ## Tecnologias e versões conhecidas
 
@@ -169,3 +169,9 @@ Implementados endpoints administrativos de consulta, mudança concorrente-segura
 A migration aditiva `20261116120000_admin_reembolsos_sprint15` cria `reembolsos`, constraints e relações e foi aplicada somente em `leosburger_test`. Não remove nem modifica constraints existentes. Eventos PIX tardios e tentativas distintas pagas são preservados/auditados sem gerar reembolso automático.
 
 Validação local em 16/11/2026: 31 arquivos/221 testes aprovados; build TypeScript, `npx prisma validate`, `prisma migrate status` (9 migrations) e `git diff --check` aprovados. O evento PIX tardio e cancelamento concorrente foram cobertos; cancelamento pago registra a necessidade de reembolso por tentativa e cancelamento por expiração reconcilia pagamentos já recebidos. `npm test` e `npm run db:test:migrate` não iniciam seus scripts porque `tsx` chama `node:os.userInfo()`, que neste ambiente retorna `uv_os_get_passwd returned ENOMEM`; comandos diretos foram executados sob guarda localhost e `leosburger_test`. Alterações permanecem locais, sem stage ou commit.
+
+## Estado da Sprint 16 — dashboard
+
+`GET /admin/dashboard` foi implementado para ADMIN, com referências civis de dia (`YYYY-MM-DD`), mês (`YYYY-MM`), semestre (`YYYY-S1`/`YYYY-S2`) e ano (`YYYY`). Fronteiras são calculadas em `America/Sao_Paulo`, convertidas a UTC e consultadas com início inclusivo/fim exclusivo. A API separa bruto, cancelamentos, recebimentos por tentativa paga, tentativas pendentes, reembolsos iniciados/confirmados e resultado líquido; agregações independentes no banco evitam multiplicar valores por relacionamentos. O simulador é marcado pelo prefixo `sim-` de `transacaoExterna`; o sistema ainda não possui provedor real.
+
+Recebimento usa `TentativaPagamento.encerradoEm`, data de registro da confirmação. Presencial só é real no relatório com auditoria da confirmação ADMIN; simulação é identificada pelo prefixo de transação gerado pelo simulador; PIX de outra origem fica não classificado enquanto não houver gateway ou fonte persistida. Reembolsos herdam a origem pela tentativa original e valores sem origem comprovada também ficam não classificados. Resultado efetivo inclui apenas recebimentos reais menos devoluções reais confirmadas. Tentativas PIX pendentes sem criação confirmada ou já vencidas são excluídas mesmo antes do processamento da expiração. Não houve mudança de schema ou migration. Validação desta revisão: 32 arquivos/224 testes aprovados via Vitest direto serial, build, Prisma validate, migration status (9 migrations atualizadas em `leosburger_test`) e `git diff --check` aprovados. O wrapper npm falha antes da suíte por `uv_os_get_passwd returned ENOMEM`; medições e limites estão em `docs/sprints/SPRINT-16.md`.
